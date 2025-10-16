@@ -1,0 +1,1769 @@
+---
+title: "EcoTaxa_New"
+output: html_document
+date: "2025-09-08"
+---
+#This is the updated code that takes into account the pre-calculated individual biovolume from the EcoTaxa/EcoPart manuals. I think this is the more correct way of computing the biovolume, counts, and abundances due to the lack of multiplying all values by the splitting fraction a second time. Biovolume and count calculations have been updated to account for the acq_sub_part, converting the volume to m^3 BUT I HAVE NOT YET INCLUDED THE NEW CORRECTION FACTOR HOWEVER THIS SHOULD BE AN EASY ADDITION!  
+
+#DO A SHANNON DIVERSITY, SEP SPRING AND SUMMER BY YEAR AND RUN THE ANOVA AGAIN RUN ANOVA ON SD 
+#Check Johnson paper and see how she presented diversity data
+#Box plot of season of diversity. diversity for each sample and average sample diversity indices by season.
+
+#Don't forget to load all of your packages first or it will not work lol
+```{r load packages here, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(viridis)
+library(forcats)
+library(ggpattern)
+library(gtable)
+library(patchwork)
+library(scales)
+```
+
+#Importing and combining all EcoTaxa zip and TSV files between all necessary projects:
+```{r import zip, include=FALSE}
+library(dplyr)
+
+# Define paths
+zip_file <- "/Volumes/Seagate/EcoTaxa_Test/Ecotaxa.zip"
+extracted_dir <- "path/to/R_Work/EcoTaxa_Test"  # <-- Replace with actual path
+
+# Create output directory if needed
+if (!dir.exists(extracted_dir)) {
+  dir.create(extracted_dir, recursive = TRUE)
+}
+
+# Unzip the files
+unzip(zip_file, exdir = extracted_dir)
+
+# List .tsv files
+tsv_files <- list.files(extracted_dir, pattern = "\\.tsv$", full.names = TRUE)
+
+# Define columns to force as character
+force_char_cols <- c("sample_ship", "sample_stationid")
+
+# Read and coerce selected columns to character if they exist
+tsv_data <- lapply(tsv_files, function(file) {
+  df <- read.delim(file, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+  
+  # Force listed columns to character if present
+  for (col in force_char_cols) {
+    if (col %in% names(df)) {
+      df[[col]] <- as.character(df[[col]])
+    }
+  }
+
+  df$source_file <- basename(file)  # Optional: tag rows with source file
+  df
+})
+
+# Combine safely
+combined_df_1 <- bind_rows(tsv_data)
+
+# View result
+head(combined_df_1)
+```
+```{r debug tsv check, include=FALSE}
+# Inspect number of columns and column names
+tsv_data <- lapply(tsv_files, function(file) {
+  df <- read.delim(file, header = TRUE, sep = "\t")
+  list(
+    file = file,
+    ncol = ncol(df),
+    colnames = colnames(df),
+    data = df
+  )
+})
+
+# Print column info for each file
+for (item in tsv_data) {
+  cat("File:", item$file, "\n")
+  cat("Number of columns:", item$ncol, "\n")
+  cat("Column names:", paste(item$colnames, collapse = ", "), "\n\n")
+}
+
+```
+```{r import Aug-Sept zip, include=FALSE}
+# Define the path to your zip file
+zip_file <- "/Volumes/Seagate/Aug_Sept/Aug_Sept.zip"
+extracted_dir <- "path/to/R_Work/EcoTaxa_Test"  # <-- Replace with actual path
+
+# Create output directory if needed
+if (!dir.exists(extracted_dir)) {
+  dir.create(extracted_dir, recursive = TRUE)
+}
+
+# Unzip the files
+unzip(zip_file, exdir = extracted_dir)
+
+# List .tsv files
+tsv_files <- list.files(extracted_dir, pattern = "\\.tsv$", full.names = TRUE)
+
+# Define columns to force as character
+force_char_cols <- c("sample_ship", "sample_stationid")
+
+# Read and coerce selected columns to character if they exist
+tsv_data <- lapply(tsv_files, function(file) {
+  df <- read.delim(file, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+  
+  # Force listed columns to character if present
+  for (col in force_char_cols) {
+    if (col %in% names(df)) {
+      df[[col]] <- as.character(df[[col]])
+    }
+  }
+
+  df$source_file <- basename(file)  # Optional: tag rows with source file
+  df
+})
+
+# Combine safely
+combined_df_2 <- bind_rows(tsv_data)
+
+# View result
+head(combined_df_2)
+```
+```{r combine both df together, include=FALSE}
+combined_df <- rbind(combined_df_1, combined_df_2)
+combined_df$object_date <- as.Date(combined_df$object_date)
+# Replace the date and other incorrect metadata moving forward
+combined_df$object_date[combined_df$object_date == as.Date("2024-01-24")] <- as.Date("2025-01-24")
+combined_df$object_date[combined_df$object_date == as.Date("2024-11-26")] <- as.Date("2024-12-04")
+combined_df$object_date[combined_df$object_date == as.Date("2024-02-05")] <- as.Date("2025-02-05")
+combined_df$object_date[combined_df$object_date == as.Date("2024-03-12")] <- as.Date("2025-03-12")
+combined_df$object_date[combined_df$object_date == as.Date("2024-08-01")] <- as.Date("2024-08-06")
+#combined_df$sample_net_mesh[combined_df$sample_net_mesh == 1251846.9429999999702] <- 700
+combined_df$sample_tot_vol[combined_df$sample_tot_vol == as.double("1251846.9429999999702")] <- as.double("1251846.943")
+combined_df$acq_sub_part[combined_df$object_date == as.Date("2025-05-07") & as.double(combined_df$acq_sub_part) == 2] <- 32
+combined_df$acq_sub_part[combined_df$object_date == as.Date("2025-04-22") & as.double(combined_df$acq_sub_part) == 1] <- 4
+combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-06-13") & as.double(combined_df$acq_sub_part) == 32] <- 64
+combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-07-30") & as.double(combined_df$acq_sub_part) == 32] <- 64
+combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-07-30") & as.double(combined_df$acq_sub_part) == 1] <- 2
+combined_df$sample_tot_vol[combined_df$sample_tot_vol == 13099.126899999999296] <- 130099.13
+combined_df$sample_stationid[combined_df$object_date == as.Date("2025-06-17") & c(combined_df$sample_stationid) == "wood" & as.double(combined_df$acq_sub_part) == 1] <- "ram"
+combined_df$sample_tot_vol[combined_df$object_date == as.Date("2025-06-17") & as.double(combined_df$acq_sub_part) == 1] <- 89907.44935
+combined_df$sample_stationid[combined_df$object_date == as.Date("2025-06-23") & c(combined_df$sample_stationid) == "ram" & as.double(combined_df$acq_sub_part) == 16] <- "wood"
+combined_df$sample_tot_vol[combined_df$object_date == as.Date("2025-06-23") & as.double(combined_df$acq_sub_part) == 16] <- 119622.6233
+combined_df$sample_net_mesh[combined_df$sample_net_mesh == 99999] <- 700
+combined_df$sample_tot_vol[combined_df$sample_tot_vol == 99999.000000000000000] <- 1251846.943
+combined_df$sample_stationid[is.na(combined_df$sample_stationid)] <- "ram"
+head(combined_df)
+
+# Get unique dates
+unique_dates <- unique(combined_df$object_date)
+
+# Count them
+n_unique_dates <- length(unique_dates)
+
+# Print the count
+print(n_unique_dates)
+
+# Print the unique dates
+print(unique_dates)
+```
+
+#Defining variables, all of this code came from the EcoTaxa and EcoPart manuals
+```{r Define, include=FALSE}
+Area_mm2 <- (combined_df$object_area)*(combined_df$process_particle_pixel_size_mm)^2
+Area_excluded_mm2 <- (combined_df$object_area_exc)*(combined_df$process_particle_pixel_size_mm)^2
+Major_mm <- (combined_df$combined_df$object_major)*(combined_df$process_particle_pixel_size_mm)
+Minor_mm <- (combined_df$object_minor)*(combined_df$process_particle_pixel_size_mm)
+Volume <- (combined_df$sample_tot_vol)/(100^3) #converting to m^3 since the Google Sheet computes it in cm^3
+```
+#Put all biovolume calculations in this section:
+#Test case for a few random dates and run biovolume code to see if it is using the correct splitting factor
+```{r Plain Biovol, include=FALSE}
+Radius_circle <- sqrt(Area_mm2/pi)
+Spherical_Volume <- ((4/3)*pi*(((combined_df$object_esd/2)*combined_df$process_particle_pixel_size_mm)^3))/1000 #ESD in pixels to cm^3 divide by 1000 to convert to mL (vol 1 individual)
+#Divided by 2 to get radius
+Biovolume <- ((Spherical_Volume*(combined_df$acq_sub_part)) / (combined_df$sample_tot_vol/(100^3)))
+```
+```{r Plain Biovol dataframe, include=FALSE}
+
+# Assuming combined_df already contains object_date and acq_sub_part
+Biovolume_df <- data.frame(
+  Biovolume = Biovolume,  # Replace this with your Biovolume vector
+  Date = combined_df$object_date,  # Date from object_date column
+  Fraction = combined_df$acq_sub_part, # Include acq_sub_part here
+  Volume,
+  Tow = combined_df$sample_net_mesh # Include sample_net_mesh here
+ )
+
+print(Biovolume_df)
+
+n_unique_dates <- length(unique(combined_df$object_date))
+print(n_unique_dates)
+```
+```{r aggregates all pre-adjusted biovols by dateI TIHNK THIS IS CORRECT CHECK W TRICIA, include=FALSE}
+# Convert to Date format if needed
+Biovolume_df$Date <- as.Date(Biovolume_df$Date)
+
+# Assuming combined_df already contains object_date and acq_sub_part
+Biovolume_df <- data.frame(
+  Biovolume = Biovolume,  # Replace this with your Biovolume vector
+  Date = combined_df$object_date,  # Date from object_date column
+  Fraction = combined_df$acq_sub_part, # Include acq_sub_part here
+  Volume = combined_df$sample_tot_vol,# Include sample_net_mesh here
+  Spherical_volume = Spherical_Volume,
+  Tow = combined_df$sample_net_mesh, # Include sample_net_mesh here
+  Station = combined_df$sample_stationid, #Allow for selection of specific sampling sites
+  object_id = combined_df$object_id
+ )
+
+print(Biovolume_df)
+
+# Aggregate Biovolume by Date
+#biovolume_by_date <- aggregate(Spherical_volume ~ Date, data = Biovolume_df, sum)
+# View the result
+#print(biovolume_by_date)
+
+# Group by Date and keep relevant columns
+biovolume_by_date <- Biovolume_df %>%
+  group_by(Date, Fraction, Volume, Tow, Station) %>%
+  summarise(Biovolume_tot = sum(Spherical_volume), .groups = "drop")
+
+# Add biovol_conc column
+biovolume_by_date <- biovolume_by_date %>%
+  mutate(
+    biovol_conc = if_else( #biovol_conc is the adjusted biovolume showing the biovolume of a sample per unit volume of seawater
+      Fraction == 1, #scanned the entire sample, skips conversion
+      Biovolume_tot / (Volume / 1e6), #divides by the corrected volume
+      (Biovolume_tot * (Fraction / 2)) / (Volume / 1e6) #divides splitting fraction by 2 since 2 scans of the same fraction were taken, essentially if 2 1/32 scans were taken then 2/32 = 1/16 (computes correction and then divides by corrected volume)
+    )
+  )
+# Aggregate values for 2025-02-26 (one is a single comb jelly pulled out of the tow)
+agg_row <- biovolume_by_date %>%
+  filter(Date == as.Date("2025-02-26")) %>%
+  summarise(
+    Date = as.Date("2025-02-26"),
+    Biovolume_tot = sum(Biovolume_tot, na.rm = TRUE),
+    biovol_conc = sum(biovol_conc, na.rm = TRUE),
+    Fraction = NA_real_,  # or maybe mean(Fraction), if it makes sense
+    Volume = NA_real_,    # or sum(Volume), if appropriate
+    Tow = first(Tow),
+    Station = first(Station),
+    .groups = "drop"
+  )
+
+# Remove original rows for that date and add the combined one
+biovolume_by_date <- biovolume_by_date %>%
+  filter(Date != as.Date("2025-02-26")) %>%
+  bind_rows(agg_row)
+# View result
+print(biovolume_by_date)
+```
+
+```{r Biovolume plots, include=FALSE}
+# Plot for Tow = 200
+biovolume_plot_200 <- ggplot(data = biovolume_by_date %>% filter(Tow %in% as.numeric(200), Station %in% c("ram", "ram_island", "nan", "NaN") ), aes(x = Date, y = biovol_conc)) +
+  geom_line(color = "black", size = 1.0) +  # Thicker line with size = 1.5
+  geom_point()+
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 22, hjust = 0.5),
+    panel.grid = element_blank(),  # Remove all grid lines
+    axis.line = element_line(color = "black", size = 0.5)  # Add axis lines
+  ) +
+  scale_x_date(
+    date_breaks = "1 week", 
+    date_labels = "%b %d"  # Format for Month Day (e.g., "Apr 30")
+  ) +
+  scale_y_continuous(labels = label_number(scale = 1, accuracy = 0.0001)) +
+  labs(
+    title = NULL,
+    x = "Date",
+    y = expression("BioVolume (individuals" ~ m^{-3} * ")")
+  )
+
+
+# Plot for Tow = 700
+biovolume_plot_700 <- ggplot(data = biovolume_by_date %>% filter(Tow == 700), aes(x = Date, y = biovol_conc)) +
+  geom_line(color = "black", size = 1.5) +  # Thicker line with size = 1.5
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 22, hjust = 0.5),
+    panel.grid = element_blank(),  # Remove all grid lines
+    axis.line = element_line(color = "black", size = 0.5)  # Add axis lines
+  ) +
+  scale_x_date(
+    date_breaks = "1 week", 
+    date_labels = "%b %d"  # Format for Month Day (e.g., "Apr 30")
+  ) +
+  scale_y_continuous(labels = label_number(scale = 1, accuracy = 0.01)) +
+  labs(
+    title = NULL,
+    x = "Date",
+    y = expression("BioVolume (individuals" ~ mL^{-3} * ")")
+  )
+
+# Print both plots
+print(biovolume_plot_200)
+#ggsave("biovolume_plot_200.png", plot = biovolume_plot_200, dpi = 300)
+#browseURL("biovolume_plot_200.png")
+print(biovolume_plot_700)
+```
+#Put all count calculations and figures in this section:
+```{r getting count data for time series CORRECT (CHECK W TRICIA), include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(forcats)
+
+object_counts_og <- combined_df %>%
+  filter(
+    sample_net_mesh %in% c("200"),
+    sample_stationid %in% c("ram", "ram_island", "na", "NaN"),
+    !grepl("^not-living>", object_annotation_hierarchy)
+  ) %>%
+  group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
+  summarise(
+    n = n(),
+    acq_sub_part = first(acq_sub_part), #This will multiple the n count value for each date with the correct splitting fraction MIGHT WANT TO DOUBLE CHECK 
+    n_cor = n * acq_sub_part,
+    .groups = "drop"
+  ) %>%
+  # Combine selected Acartia categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Acartia", "Acartia hudsonica", "Acartia tonsa") ~ "Acartia spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Centropages categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Centropages", "Centropages hamatus", "Centropages typicus") ~ "Centropages spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected nauplii categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("unidentified-nauplii", "nauplii<Copepoda", "nauplii-molt") ~ "Copepod nauplii",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Pseudocalanus categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Pseudocalanus", "Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Paracalanus categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Paraocalanus", "Paracalanus sp.", "Paracalanus parvus", "	paracalanus+sp+eggs") ~ "Paracalanus spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Eurytemora categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs") ~ "Eurytemora spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  group_by(object_annotation_category, sample_net_mesh) %>%
+  summarise(
+    n_cor = sum(n_cor), #add it all up
+    .groups = "drop"
+  )
+
+print(object_counts_og)
+```
+```{r stacked bar graphs by tow CORRECTED, include=FALSE}
+
+# Step 3: Create the stacked bar graph with manually set facet titles
+stacked_bar_graph_og <- ggplot(object_counts_og, aes(x = reorder(object_annotation_category, n_cor), y = n_cor)) +
+  geom_bar(stat = "identity", fill = "black", color = "black") +  # Set bars to black (fill) with black outlines (color)
+  facet_wrap(~ sample_net_mesh, scales = "free_x") +  # Use the custom facet titles from the factor labels
+  coord_flip() +  # Flip the bars for better readability
+  theme_bw() +  # Use the black and white theme
+  labs(
+    title = NULL,
+    x = "Species",
+    y = "Total Individuals (Count)"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 60, hjust = 1),  # Adjust angle for better label readability
+    legend.position = "none",  # Remove legend
+    strip.text = element_text(face = "bold"),  # Make facet titles bold
+    panel.grid.major = element_line(color = "gray80"),  # Lighter grid lines
+    panel.grid.minor = element_blank()  # Remove minor grid lines
+  )
+
+# Show the plot
+print(stacked_bar_graph_og)
+```
+#Count data and combining categories including all detritus and with corrected splitting fraction calculation Josh and I came up with
+```{r getting count data for time series and keeping things in their date, include=FALSE}
+# Final summarization with object_date included
+object_counts_og_with_dates <- combined_df %>%
+  filter(
+    sample_net_mesh %in% c("200"),
+    sample_stationid %in% c("ram", "ram_island", "na", "NaN")
+  ) %>%
+  group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
+  summarise(
+   n = n(),
+    acq_sub_part = first(acq_sub_part),  # Get the first fraction per group
+    n_cor = if_else(
+      acq_sub_part == 1,
+      n,                    # If fraction == 1, no correction
+      n * (acq_sub_part / 2)  # If fraction not 1, apply correction like in biovolume example
+    ),
+    .groups = "drop"
+  ) %>%
+  
+  # Combine various categories as before
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Acartia", "Acartia hudsonica", "Acartia tonsa") ~ "Acartia spp.",
+      object_annotation_category %in% c("Centropages", "Centropages hamatus", "Centropages typicus") ~ "Centropages spp.",
+      object_annotation_category %in% c("unidentified-nauplii", "nauplii<Copepoda", "nauplii-molt") ~ "Copepod nauplii",
+      object_annotation_category %in% c("Pseudocalanus", "Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
+      object_annotation_category %in% c("Paraocalanus", "Paracalanus sp.", "Paracalanus parvus", "	paracalanus+sp+eggs") ~ "Paracalanus spp.",
+      object_annotation_category %in% c("Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs") ~ "Eurytemora spp.",
+      object_annotation_category %in% c("Evadne", "evadne-nordmanni-multiple") ~ "Evadne spp.",
+      object_annotation_category %in% c("Copepoda<Maxillopoda", "copepod shape", "badfocus<Copepoda", "multiple<Copepoda", "Microcalanus", "Microcalanus sp.", "Parvocalanus", "Temora   longicornis", "Tortanus sp.", "Calanoida", "Calanus sp.", "copepod sp.") ~ "Copepoda spp.",
+      object_annotation_category %in% c("copepod carapace", "detritus-flat", "detritus-green", "detritus-organic", "fiber<detritus", "shadow", "bubble", "badfocus<other", "Macroalgae", "egg-cluster", "dark<detritus", "detritus", "scale") ~ "Detritus",
+      object_annotation_category %in% c("Aurelia sp.", "Balanus<Cirripedia", "balanus-larvae", "Beroe cucumis", "Bivalvia larvae", "Chaetognatha", "Ctenophora sp.", "Decapoda", "Carcinus maenas", "Paguridae", "zoe<Decopoda", "Euphausiacea larvae", "Hydrozoa", "Obelia sp.", "Rathkea octopunctata", "Sarsia tubulosa", "Insecta", "Polychaeta", "polychaete larva", "ctenophore-freagments", "egg<other", "fish egg", "larval-fishes", "medusae", "multiple<other", "multiple+copepoda+detritus", "detritus-copepodo") ~ "Other zooplankton",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  
+  #Group by object_date too
+  group_by(object_date, object_annotation_category, sample_net_mesh, acq_sub_part) %>%
+  summarise(
+    n_cor = sum(n_cor),
+    .groups = "drop"
+  )
+print(object_counts_og_with_dates)
+
+```
+#Getting count data but excluding detritus categories so the ensuing graphs do not at to 100%
+```{r getting count data for time series and keeping things in their date, include=FALSE}
+# Final summarization with object_date included
+object_counts_og_with_dates_no_detritus <- combined_df %>%
+  filter(
+    sample_net_mesh %in% c("200"),
+    sample_stationid %in% c("ram", "na", "NaN", "ram_island"),
+    !grepl("^not-living>", object_annotation_hierarchy)  # Exclude "not-living>" and subcategories
+  ) %>%
+  group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
+  summarise(
+   n = n(),
+    acq_sub_part = first(acq_sub_part),  # Get the first fraction per group
+    n_cor = if_else(
+      acq_sub_part == 1,
+      n,                    # If fraction == 1, no correction
+      n * (acq_sub_part / 2)  # If fraction not 1, apply correction like in biovolume example
+    ),
+    .groups = "drop"
+  ) %>%
+  
+  # Combine various categories as before
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Acartia", "Acartia hudsonica", "Acartia tonsa") ~ "Acartia spp.",
+      object_annotation_category %in% c("Centropages", "Centropages hamatus", "Centropages typicus") ~ "Centropages spp.",
+      object_annotation_category %in% c("unidentified-nauplii", "nauplii<Copepoda", "nauplii-molt") ~ "Copepod nauplii",
+      object_annotation_category %in% c("Pseudocalanus", "Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
+      object_annotation_category %in% c("Paraocalanus", "Paracalanus sp.", "Paracalanus parvus", "	paracalanus+sp+eggs") ~ "Paracalanus spp.",
+      object_annotation_category %in% c("Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs") ~ "Eurytemora spp.",
+      object_annotation_category %in% c("Evadne", "evadne-nordmanni-multiple") ~ "Evadne spp.",
+      object_annotation_category %in% c("Copepoda<Maxillopoda", "copepod shape", "badfocus<Copepoda", "multiple<Copepoda", "Microcalanus", "Microcalanus sp.", "Parvocalanus", "Temora   longicornis", "Tortanus sp.", "Calanoida", "Calanus sp.", "copepod sp.") ~ "Copepoda spp.",
+      object_annotation_category %in% c("Aurelia sp.", "Balanus<Cirripedia", "balanus-larvae", "Beroe cucumis", "Bivalvia larvae", "Chaetognatha", "Ctenophora sp.", "Decapoda", "Carcinus maenas", "Paguridae", "zoe<Decopoda", "Euphausiacea larvae", "Hydrozoa", "Obelia sp.", "Rathkea octopunctata", "Sarsia tubulosa", "Insecta", "Polychaeta", "polychaete larva", "ctenophore-freagments", "egg<other", "fish egg", "larval-fishes", "medusae", "multiple<other", "multiple+copepoda+detritus", "detritus-copepodo") ~ "Other zooplankton",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  
+  #Group by object_date too
+  group_by(object_date, object_annotation_category, sample_net_mesh, acq_sub_part) %>%
+  summarise(
+    n_cor = sum(n_cor),
+    .groups = "drop"
+  )
+print(object_counts_og_with_dates_no_detritus)
+```
+```{r double checking the splitting fractions and dates to ensure everything looks correct, include=FALSE}
+# View result
+combined_df %>%
+  select(object_date, acq_sub_part, sample_net_mesh) %>%
+  distinct() %>%
+  arrange(object_date)
+```
+
+#relative abundance calculations and graphs in this section:
+#Because you’re calculating relative abundance using the total counts from all categories (before filtering and slicing), the relative abundances of just the top 10 categories will sum to less than 1 (or 100%)—since there are other categories outside the top 10 contributing to the total.
+```{r calculating relative abundances for 200 tow across all dates, include=FALSE}
+relative_abundance_df <- object_counts_og %>%
+  group_by(sample_net_mesh, object_annotation_category) %>%
+  summarise(
+    total_count = sum(n_cor, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  group_by(sample_net_mesh) %>%
+  mutate(
+    relative_abundance = total_count / sum(total_count, na.rm = TRUE)
+  ) %>%
+  # Exclude the unwanted category before slicing top 10
+  filter(object_annotation_category != "badfocus<other") %>%
+  arrange(sample_net_mesh, desc(relative_abundance)) %>%
+  slice_head(n = 10) %>%  # Top 10 per sample_net_mesh
+  ungroup() %>%
+  select(sample_net_mesh, object_annotation_category, relative_abundance)
+print(relative_abundance_df)
+```
+
+#Relative abundance calculations including all detritus. I also created a new object counts df to include the detritus categories that are missing in the original. I also binned all detritus and other zooplankton into detritus and other categories
+```{r calculating relative abundances for 200 tow across all dates including detritus, include=FALSE}
+object_counts_detritus <- combined_df %>%
+  filter(
+    sample_net_mesh %in% c("200"),
+    sample_stationid %in% c("ram", "ram_island", "na", "NaN")) %>%
+  group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
+  summarise(
+    n = n(),
+    acq_sub_part = first(acq_sub_part),  # Get the first fraction per group
+    n_cor = if_else(
+      acq_sub_part == 1,
+      n,                    # If fraction == 1, no correction
+      n * (acq_sub_part / 2)  # If fraction not 1, apply correction like in biovolume example
+    ),
+    .groups = "drop"
+  ) %>%
+  # Combine selected Acartia categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Acartia", "Acartia hudsonica", "Acartia tonsa") ~ "Acartia spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Centropages categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Centropages", "Centropages hamatus", "Centropages typicus") ~ "Centropages spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected nauplii categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("unidentified-nauplii", "nauplii<Copepoda", "nauplii-molt") ~ "Copepod nauplii",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Pseudocalanus categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Pseudocalanus", "Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Paracalanus categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Paraocalanus", "Paracalanus sp.", "Paracalanus parvus", "paracalanus+sp+eggs") ~ "Paracalanus spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Eurytemora categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs") ~ "Eurytemora spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+       # Combine selected Detritus categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("copepod carapace", "detritus-flat", "detritus-green", "detritus-organic", "fiber<detritus", "shadow", "bubble", "badfocus<other", "Macroalgae", "egg-cluster", "dark<detritus", "detritus", "scale") ~ "Detritus",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Copepod sp categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Copepoda<Maxillopoda", "copepod shape", "badfocus<Copepoda", "multiple<Copepoda", "Microcalanus", "Microcalanus sp.", "Parvocalanus", "Temora longicornis", "Tortanus sp.", "Calanoida", "Calanus sp.", "copepod sp.") ~ "Copepoda spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected other categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Aurelia sp.", "Balanus<Cirripedia", "balanus-larvae", "Beroe cucumis", "Bivalvia larvae", "Chaetognatha", "Ctenophora sp.", "Decapoda", "Carcinus maenas", "Paguridae", "zoe<Decopoda", "Euphausiacea larvae", "Hydrozoa", "Obelia sp.", "Rathkea octopunctata", "Sarsia tubulosa", "Insecta", "Polychaeta", "polychaete larva", "ctenophore-freagments", "egg<other", "fish egg", "larval-fishes", "medusae", "multiple<other", "multiple+copepoda+detritus", "detritus-copepodo") ~ "Other zooplankton",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected other categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Evadne", "evadne-nordmanni-multiple") ~ "Evadne spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  group_by(object_annotation_category, sample_net_mesh) %>%
+  summarise(
+    n_cor = sum(n_cor), #add it all up
+    .groups = "drop"
+  )
+
+print(object_counts_detritus)
+
+relative_abundance_detritus_df <- object_counts_detritus %>%
+  group_by(sample_net_mesh, object_annotation_category) %>%
+  summarise(
+    total_count = sum(n_cor, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  group_by(sample_net_mesh) %>%
+  mutate(
+    relative_abundance = total_count / sum(total_count, na.rm = TRUE)
+  ) %>%
+  arrange(sample_net_mesh, desc(relative_abundance)) %>%
+  #slice_head(n = 10) %>%  # Top 10 per sample_net_mesh
+  ungroup() %>%
+  mutate(object_annotation_category = as.character(object_annotation_category)) %>%
+  select(sample_net_mesh, object_annotation_category, relative_abundance)
+print(relative_abundance_detritus_df)
+
+```
+#Relative abundance graphs with detritus and other previously excluded categories
+```{r making a stacked bar graph for 200 tow across all dates including detritus, include=FALSE}
+species_colors <- c(
+  "Detritus"            = "#b89cff",
+  "Copepoda spp."       = "#d5b8ff",
+  "Other zooplankton"   = "#9bafff",
+  "Copepod nauplii"     = "#3a55b4",
+  "Oithona sp."         = "#537dc6",
+  "Paracalanus spp."    = "#6caddf",
+  "Podonidae"           = "#7fcff1",
+  "Psuedocalanus spp."  = "#8cd9ff",
+  "Gastropoda larvae"   = "#4d8fb0",
+  "Evadne spp."         = "#64b48b",
+  "Eurytemora spp."     = "#81de76",
+  "Centropages spp."    = "#a7ed84",
+  "Acartia spp."        = "#ccff8c"
+)
+# Reorder factor levels to match color palette
+relative_abundance_detritus_df$object_annotation_category <- factor(
+  relative_abundance_detritus_df$object_annotation_category,
+  levels = names(custom_colors)
+)
+
+# Plot
+relative_abundance_plot_all <- ggplot(relative_abundance_detritus_df, aes(
+  x = sample_net_mesh,  # use factor() if needed for discrete x
+  y = relative_abundance,
+  fill = object_annotation_category
+)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = NULL,
+    x = "200µm",
+    y = "Relative Abundance (%)",
+    fill = "Genus"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right"
+  ) +
+  scale_x_discrete(breaks = "200", labels = "200") +
+  scale_fill_manual(values = custom_colors)
+
+# Print the plot
+print(relative_abundance_plot_all)
+
+```
+```{r diagnosing why with the detritus the relative abundances do not add to 100%, include=FALSE}
+total_relative_abundance <- sum(relative_abundance_detritus_df$relative_abundance, na.rm = TRUE)
+print(total_relative_abundance) #For some reason when I created the new object_counts data frame without filtering for detritus the total relative abundance did not change from when I was pulling from the object_counts_og where I did filter out detritus
+
+sum(is.na(relative_abundance_detritus_df$relative_abundance)) #No NAs
+
+relative_abundance_detritus_df %>%
+  group_by(sample_net_mesh) %>%    # or sample_id, whatever identifies groups
+  summarise(total_abundance = sum(relative_abundance, na.rm = TRUE)) %>%
+  arrange(total_abundance) %>%
+  print() #0.8451015
+
+relative_abundance_df %>%
+  group_by(sample_net_mesh) %>%    # or sample_id, whatever identifies groups
+  summarise(total_abundance = sum(relative_abundance, na.rm = TRUE)) %>%
+  arrange(total_abundance) %>%
+  print() #0.7900955
+
+relative_abundance_detritus_df %>%
+  count(sample_net_mesh) %>%
+  print()
+```
+
+#Going back to making the original stacked graphs after diagnosing the problem
+```{r making a stacked bar graph for 200 tow across all dates, include=FALSE}
+library(ggplot2)
+library(dplyr)
+
+# Ensure object_annotation_category is a factor with levels matching custom_colors names
+relative_abundance_df <- relative_abundance_df %>%
+  mutate(object_annotation_category = factor(object_annotation_category, levels = names(custom_colors)))
+
+# If sample_net_mesh is categorical (e.g., "200"), keep it as factor for discrete x-axis
+# Only convert to numeric if you want a continuous axis
+relative_abundance_df <- relative_abundance_df %>%
+  mutate(sample_net_mesh = factor(sample_net_mesh, levels = unique(sample_net_mesh)))
+
+# Plot
+relative_abundance_plot <- ggplot(relative_abundance_df, aes(
+    x = as.numeric(sample_net_mesh),           # discrete x-axis as factor
+    y = relative_abundance,
+    fill = object_annotation_category
+  )) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = NULL,
+    x = "200µm",
+    y = "Relative Abundance (%)",
+    fill = "Genus"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right"
+  ) +
+  scale_fill_manual(values = custom_colors) +
+  scale_x_discrete(breaks = "200", labels = "200")  # keep this if you only want "200" label on x-axis
+
+print(relative_abundance_plot)
+
+```
+```{r function to get relative abundance for each month in the timeseries, include=FALSE}
+calculate_top10_relative_abundance <- function(df, exclude_categories = NULL) {
+  df %>%
+    # Filter out the excluded categories if provided
+    { if (!is.null(exclude_categories)) filter(., !object_annotation_category %in% exclude_categories) else . } %>%
+    
+    # Extract year-month from object_date
+    mutate(month = floor_date(as.Date(object_date), "month")) %>%
+    
+    # Group by month, species, and sample_net_mesh (if you want to keep mesh grouping)
+    group_by(month, object_annotation_category, sample_net_mesh) %>%
+    
+    # Sum n_cor counts per month and species
+    summarise(total_n_cor = sum(n_cor, na.rm = TRUE), .groups = "drop") %>%
+    
+    # Calculate total n_cor per month for relative abundance
+    group_by(month) %>%
+    mutate(
+      relative_abundance = total_n_cor / sum(total_n_cor, na.rm = TRUE)
+    ) %>%
+    
+    # For each month, keep only top 10 species by relative abundance
+    arrange(month, desc(relative_abundance)) %>%
+    group_by(month) %>%
+    slice_head(n = 10) %>%
+    ungroup()
+}
+
+
+top10_relative_abundance_df <- calculate_top10_relative_abundance(
+  object_counts_og_with_dates,
+)
+print(top10_relative_abundance_df)
+```
+```{r creating the stacked bar plots, include=FALSE}
+monthly_abundance_plots <- ggplot(top10_relative_abundance_df, aes(x = format(month, "%Y-%m"), y = relative_abundance, fill = object_annotation_category)) +
+  geom_bar(stat = "identity") +
+  labs(
+    x = "Month",
+    y = "Relative Abundance (%)",
+    fill = "Genus",
+    title = NULL
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(monthly_abundance_plots)
+```
+#Writing the function and creating the bar plots to exclude detritus categories 
+```{r function to get relative abundance for each month in the timeseries, include=FALSE}
+calculate_top10_relative_abundance_no_detritus <- function(df, exclude_categories = NULL) {
+  df %>%
+    # Filter out the excluded categories if provided
+    { if (!is.null(exclude_categories)) filter(., !object_annotation_category %in% exclude_categories) else . } %>%
+    
+    # Extract year-month from object_date
+    mutate(month = floor_date(as.Date(object_date), "month")) %>%
+    
+    # Group by month, species, and sample_net_mesh (if you want to keep mesh grouping)
+    group_by(month, object_annotation_category, sample_net_mesh) %>%
+    
+    # Sum n_cor counts per month and species
+    summarise(total_n_cor = sum(n_cor, na.rm = TRUE), .groups = "drop") %>%
+    
+    # Calculate total n_cor per month for relative abundance
+    group_by(month) %>%
+    mutate(
+      relative_abundance = total_n_cor / sum(total_n_cor, na.rm = TRUE)
+    ) %>%
+    
+    # For each month, keep only top 10 species by relative abundance
+    filter(object_annotation_category != "badfocus<other", 
+           object_annotation_category != "Macroalgae") %>%
+    arrange(month, desc(relative_abundance)) %>%
+    group_by(month) %>%
+    slice_head(n = 10) %>%
+    ungroup()
+}
+
+
+top10_relative_abundance_df_no_detritus <- calculate_top10_relative_abundance_no_detritus(
+  object_counts_og_with_dates_no_detritus,
+)
+print(top10_relative_abundance_df_no_detritus)
+```
+```{r creating the stacked bar plots, include=FALSE}
+species_colors <- c( 
+  "Temora longicornis" = "#b89cff", 
+  "Copepoda spp."      = "#d5b8ff",  
+  "Other zooplankton"  = "#9bafff", 
+  "Copepod nauplii"    = "#3a55b4", 
+  "Oithona sp."        = "#537dc6", 
+  "Paracalanus spp."   = "#6caddf", 
+  "Podonidae"          = "#7fcff1", 
+  "Psuedocalanus spp." = "#8cd9ff", 
+  "Gastropoda larvae"  = "#4d8fb0", 
+  "Evadne spp."        = "#64b48b", 
+  "Eurytemora spp."    = "#81de76", 
+  "Centropages spp."   = "#a7ed84", 
+  "Acartia spp."       = "#ccff8c" ) 
+
+monthly_abundance_plots_no_detritus <- ggplot(top10_relative_abundance_df_no_detritus, 
+                                              aes(x = format(month, "%Y-%m"), 
+                                               y = relative_abundance, fill = object_annotation_category)) + 
+  geom_bar(stat = "identity") +
+  labs( x = "Month", y = "Relative Abundance (%)", fill = "Genus", title = NULL ) + 
+  theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1))+ 
+  scale_fill_manual(values = species_colors) 
+
+print(monthly_abundance_plots_no_detritus)
+```
+#Calculating relative abundance for each season and graphing using the bins created by Dr. T with no detritus
+```{r relative abundance calculations per season, include=FALSE}
+library(dplyr)
+library(lubridate)
+
+calculate_top10_relative_abundance_season_no_detritus <- function(df, exclude_categories = NULL) {
+  df %>%
+    
+    # Convert object_date to Date class if not already
+    mutate(object_date = as.Date(object_date),
+     year = year(object_date)) %>%
+    # Extract season based on month
+    mutate(season = case_when(
+      month(object_date) %in% c(1, 2, 3) ~ "Winter",
+      month(object_date) %in% 4:6 ~ "Spring",
+      month(object_date) %in% 7:9 ~ "Summer",
+      month(object_date) %in% 10:12 ~ "Fall",
+      TRUE ~ NA_character_
+    )) %>%
+    
+    # Group by season, species, and sample_net_mesh if needed
+    group_by(season, object_annotation_category, sample_net_mesh, year) %>%
+    # Sum n_cor counts per season and species
+    summarise(total_n_cor = sum(n_cor, na.rm = TRUE), .groups = "drop") %>%
+    
+    # Calculate total n_cor per season for relative abundance
+    group_by(season, year) %>%
+    mutate(
+      relative_abundance = total_n_cor / sum(total_n_cor, na.rm = TRUE)
+    ) %>%
+    
+    # For each season, keep only top 10 species by relative abundance
+    filter(object_annotation_category != "badfocus<other",
+           object_annotation_category != "Macroalgae") %>%
+    arrange(season, desc(relative_abundance)) %>%
+    group_by(season, year) %>%
+    #slice_head(n = 10) %>%
+    ungroup()
+}
+
+top10_relative_abundance_season_df_no_detritus <- calculate_top10_relative_abundance_season_no_detritus(
+  object_counts_og_with_dates_no_detritus
+)
+
+print(top10_relative_abundance_season_df_no_detritus)
+```
+```{r relative abundance plots per season with no detritus and other category, include=FALSE}
+library(ggplot2)
+species_colors <- c(
+  "Temora longicornis"            = "#b89cff",
+  "Copepoda spp."       = "#d5b8ff",
+  "Other zooplankton"   = "#9bafff",
+  "Copepod nauplii"     = "#3a55b4",
+  "Oithona sp."         = "#537dc6",
+  "Paracalanus spp."    = "#6caddf",
+  "Podonidae"           = "#7fcff1",
+  "Psuedocalanus spp."  = "#8cd9ff",
+  "Gastropoda larvae"   = "#4d8fb0",
+  "Evadne spp."         = "#64b48b",
+  "Eurytemora spp."     = "#81de76",
+  "Centropages spp."    = "#a7ed84",
+  "Acartia spp."        = "#ccff8c"
+)
+seasonal_abundance_plot <- ggplot(top10_relative_abundance_season_df_no_detritus,
+                                 aes(x = season, y = relative_abundance, fill = object_annotation_category)) +
+  facet_wrap(~ year) +
+  geom_bar(stat = "identity") +
+  labs(
+    x = "Season",
+    y = "Relative Abundance (%)",
+    fill = "Genus",
+    title = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.key.size = unit(1.5, "lines"),       # increase size of the legend keys
+    legend.text = element_text(size = 10)       # increase size of the legend text
+  ) +
+  scale_fill_manual(values = species_colors)
+
+print(seasonal_abundance_plot)
+```
+#Calculating relative abundance for each season and graphing using the bins created by Dr. T
+```{r relative abundance calculations per season, include=FALSE}
+library(dplyr)
+library(lubridate)
+
+calculate_top10_relative_abundance_season <- function(df, exclude_categories = NULL) {
+  df %>%
+    
+    # Convert object_date to Date class if not already
+    mutate(object_date = as.Date(object_date),
+    year = year(object_date)) %>%
+    # Extract season based on month
+    mutate(season = case_when(
+      month(object_date) %in% c(1, 2, 3) ~ "Winter",
+      month(object_date) %in% 4:6 ~ "Spring",
+      month(object_date) %in% 7:9 ~ "Summer",
+      month(object_date) %in% 10:12 ~ "Fall",
+      TRUE ~ NA_character_
+    )) %>%
+    
+    # Group by season, species, and sample_net_mesh if needed
+    group_by(season, object_annotation_category, sample_net_mesh, year) %>%
+    
+    # Sum n_cor counts per season and species
+    summarise(total_n_cor = sum(n_cor, na.rm = TRUE), .groups = "drop") %>%
+    
+    # Calculate total n_cor per season for relative abundance
+    group_by(season, year) %>%
+    mutate(
+      relative_abundance = total_n_cor / sum(total_n_cor, na.rm = TRUE)
+    ) %>%
+    
+    # For each season, keep only top 10 species by relative abundance
+    arrange(season, desc(relative_abundance)) %>%
+    group_by(season, year) %>%
+    #slice_head(n = 10) %>%
+    ungroup()
+}
+
+top10_relative_abundance_season_df <- calculate_top10_relative_abundance_season(
+  object_counts_og_with_dates
+)
+
+print(top10_relative_abundance_season_df)
+```
+```{r relative abundance plots per season with detritus and other category, include=FALSE}
+library(ggplot2)
+species_colors <- c(
+  "Detritus"            = "#b89cff",
+  "Copepoda spp."       = "#d5b8ff",
+  "Other zooplankton"   = "#9bafff",
+  "Copepod nauplii"     = "#3a55b4",
+  "Oithona sp."         = "#537dc6",
+  "Paracalanus spp."    = "#6caddf",
+  "Podonidae"           = "#7fcff1",
+  "Psuedocalanus spp."  = "#8cd9ff",
+  "Gastropoda larvae"   = "#4d8fb0",
+  "Evadne spp."         = "#64b48b",
+  "Eurytemora spp."     = "#81de76",
+  "Centropages spp."    = "#a7ed84",
+  "Acartia spp."        = "#ccff8c"
+)
+seasonal_abundance_plot_detritus <- ggplot(top10_relative_abundance_season_df,
+                                 aes(x = season, y = relative_abundance, fill = object_annotation_category)) +
+  facet_wrap(~ year) +
+  geom_bar(stat = "identity") +
+  labs(
+    x = "Season",
+    y = "Relative Abundance (%)",
+    fill = "Genus",
+    title = NULL
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_fill_manual(values = species_colors)
+
+print(seasonal_abundance_plot_detritus)
+```
+#Starting the chlorophyll and biolvume threshold and bloom calculations here:
+```{r annual median zoop biovol using corrected df, include=FALSE}
+library(dplyr)
+
+# Step 1: Filter by Tow type (e.g., "200")
+filtered_data <- biovolume_by_date %>%
+  filter(Tow == "200")
+
+# Step 2: Calculate overall average biovolume (across all dates and all 200 tows)
+avg_bio <- mean(filtered_data$biovol_conc, na.rm = TRUE)
+
+print(avg_bio)
+
+# Step 3: Calculate 5% threshold
+threshold_bio <- (avg_bio * 0.05) + avg_bio
+
+print(threshold_bio)
+
+# Step 4: Filter entries above the threshold
+dates_above_threshold <- filtered_data %>%
+  filter(biovol_conc > threshold_bio)
+
+# Step 5: View results
+print(dates_above_threshold %>% select(Date, Tow, biovol_conc))
+```
+```{r import chl a data, include=FALSE}
+chl_data <- read.csv("chl_a.csv")
+chl_data_df <- as.data.frame(chl_data)
+print(chl_data_df) 
+head(chl_data_df$Date, 10)
+```
+```{r change formatting, include=FALSE}
+# Convert the Date column to Date format
+library(lubridate)
+
+chl_data_df$Date <- mdy(chl_data_df$Date)
+Date <- chl_data_df$Date
+print(chl_data_df)
+sum(is.na(chl_data_df$Date))
+```
+```{r graph chl a 1, include=FALSE}
+chl_plot <- ggplot(data = chl_data_df, aes(x = Date, y = avg_chl_a)) +
+  geom_line() +
+  geom_point()+
+  labs(title = NULL,
+       x = "Date",
+       y = "Average Chlorophyll a Concentration (µg/L)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10)) +
+  scale_x_date(
+    date_breaks = "1 week",
+    date_labels = "%b %d %Y"
+  )
+
+print(chl_plot)
+```
+```{r zoop and chl a next to each other, include=FALSE}
+
+# --- Stack chlorophyll on top of 200 biovolume plot ---
+library(patchwork)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# Find the common date range
+start_date <- max(min(chl_data_df$Date, na.rm = TRUE),
+                  min(biovolume_by_date$Date, na.rm = TRUE))
+end_date <- min(max(chl_data_df$Date, na.rm = TRUE),
+                max(biovolume_by_date$Date, na.rm = TRUE))
+
+# Modify chl_plot with same x-axis limits
+chl_plot <- chl_plot +
+  scale_x_date(
+    limits = c(start_date, end_date),
+    date_breaks = "1 week",
+    date_labels = "%b %d") +
+  labs(title = NULL)
+
+# Stack plots with patchwork
+final_plot <- chl_plot / biovolume_plot_200 + plot_layout(heights = c(1, 1))
+
+print(final_plot)
+
+```
+```{r combine dfs, include=FALSE}
+# Join data
+biovol_chl_df <- left_join(chl_data_df, biovolume_by_date, by = c("Date" = "Date"))
+
+# Inspect result
+print(biovol_chl_df)
+```
+```{r cbiovol and chl a scatterplot, include=FALSE}
+# How many unique dates/weeks in each?
+length(unique(chl_data_df$Date))
+length(unique(biovolume_by_date$Date))
+
+# Which dates/weeks are common?
+common_dates <- intersect(chl_data_df$Date, biovolume_by_date$Date)
+length(common_dates)
+print(common_dates)
+
+
+scatter_plot <- ggplot(biovol_chl_df, aes(x = avg_chl_a, y = biovol_conc)) +
+  geom_point() +
+  labs(
+    x = "Average Chlorophyll a Concentration (µg/L)",
+    y = "Total Biovolume per Volume",
+    title = "Scatterplot of Chlorophyll a vs Total Biovolume"
+  ) +
+  theme_minimal()
+print(scatter_plot)
+```
+```{r annual median zoop biovol using corrected df, include=FALSE}
+library(dplyr)
+library(lubridate)
+
+# Step 1: Filter and calculate median per year for Tow 200
+filtered_data <- biovolume_by_date %>%
+  filter(Tow == "200") %>%
+  mutate(Year = year(Date)) %>%
+  group_by(Year) %>%
+  summarise(median_bio_conc = median(biovol_conc, na.rm = TRUE))
+
+# Step 2: Calculate threshold as 5% above median
+annual_median_biovol_conc <- filtered_data %>%
+  mutate(threshold_bio = median_bio_conc * 1.05)
+
+# Add Year to original data
+biovol_conc_with_year <- biovolume_by_date %>%
+  mutate(Year = year(Date))
+
+# Join threshold info back to original data
+bio_with_threshold <- biovol_conc_with_year %>%
+  left_join(annual_median_biovol_conc %>% select(Year, threshold_bio), by = "Year")
+
+# Filter rows where actual biovol_conc exceeds threshold
+dates_above_threshold_bio <- bio_with_threshold %>%
+  filter(biovol_conc > threshold_bio)
+
+# View filtered results
+print(dates_above_threshold_bio %>% select(Date, Year, biovol_conc, threshold_bio))
+```
+```{r annual median biovol as a bar chart, include=FALSE}
+# Your barplot and setup from before
+bar_heights <- dates_above_threshold_bio$biovol_conc
+dates <- dates_above_threshold_bio$Date
+thresholds <- dates_above_threshold_bio$threshold_bio
+
+#formatted_dates <- format(Date, "%m-%d-%y")
+
+bp <- barplot(
+  height = bar_heights,
+  col = "skyblue",
+  ylim = c(0, 700),
+  ylab = "Biovolume (Individuals/m^3)",
+  main = NULL,
+  xaxt = "n",  # suppress x axis labels
+  cex.names = 0.8, # shrink space for names, optional
+  mgp = c(3, 1, 0) # axis label margins
+)
+
+segments(bp - 0.3, thresholds, bp + 0.3, thresholds, col = "red", lwd = 2)
+points(bp, thresholds, col = "red", pch = 19)
+lines(bp, thresholds, col = "red", lwd = 2)
+
+# Add rotated labels with adjusted y position and adj
+# Get current plot bottom y-limit (to place labels just below axis)
+y_axis_min <- par("usr")[3]
+
+# Adjust y offset (experiment with this value if needed)
+y_offset <- 0.5
+
+text(
+  x = bp,
+  y = y_axis_min - y_offset,
+  labels = dates,
+  srt = 45,
+  adj = c(1, 1),  # adj for x and y direction; (1,1) right and top aligned
+  xpd = TRUE,
+  cex = 0.8  # text size
+)
+
+legend(
+  "topright",                      # Position: can be "topright", "topleft", etc.
+  legend = "Annual Biovolume Threshold", # Label in the key
+  col = "red",                     # Color matches your line
+  lty = 1,                         # Line type (solid)
+  lwd = 2,                         # Line width
+  inset = 0.02                     # Optional: inset from the edge
+)
+
+```
+```{r annual median chl a, include=FALSE}
+annual_median_chl <- chl_data_df %>%
+  mutate(Year = year(Date)) %>%            # Extract year from Date
+  group_by(Year) %>%                       # Group by year
+  summarise(median_avg_chl_a = median(avg_chl_a, na.rm = TRUE))  # Calculate median ignoring NAs
+
+print(annual_median_chl)
+
+# Step 2: Calculate threshold per year (5% above median)
+annual_median_chl <- annual_median_chl %>%
+  mutate(threshold_chl = (median_avg_chl_a*0.05) + median_avg_chl_a)
+
+print(annual_median_chl)
+
+# Add Year to original data
+chl_data_with_year <- chl_data_df %>%
+  mutate(Year = year(Date))
+
+# Join annual median and threshold to original data
+chl_with_threshold <- chl_data_with_year %>%
+  left_join(
+    annual_median_chl %>%
+      mutate(threshold_chl = median_avg_chl_a * 1.05),  # threshold = median + 5%
+    by = "Year"
+  )
+
+# Filter dates where avg_chl_a exceeds the threshold
+dates_above_threshold_chl <- chl_with_threshold %>%
+  filter(avg_chl_a > threshold_chl)
+
+# View the filtered dates and values
+print(dates_above_threshold_chl %>% select(Date, Year, avg_chl_a, threshold_chl))
+```
+```{r annual median chl a as a bar chart, include=FALSE}
+# Your barplot and setup from before
+bar_heights <- dates_above_threshold_chl$avg_chl_a
+dates <- dates_above_threshold_chl$Date
+thresholds <- dates_above_threshold_chl$threshold_chl
+
+#formatted_dates <- format(Date, "%m-%d-%y")
+
+bp <- barplot(
+  height = bar_heights,
+  col = "skyblue",
+  ylim = c(0, 14),
+  ylab = "Average Chlorophyll a (μg/L)",
+  main = NULL,
+  xaxt = "n",  # suppress x axis labels
+  cex.names = 0.8, # shrink space for names, optional
+  mgp = c(3, 1, 0) # axis label margins
+)
+
+segments(bp - 0.3, thresholds, bp + 0.3, thresholds, col = "red", lwd = 2)
+points(bp, thresholds, col = "red", pch = 19)
+lines(bp, thresholds, col = "red", lwd = 2)
+
+# Add rotated labels with adjusted y position and adj
+# Get current plot bottom y-limit (to place labels just below axis)
+y_axis_min <- par("usr")[3]
+
+# Adjust y offset (experiment with this value if needed)
+y_offset <- 0.5
+
+text(
+  x = bp,
+  y = y_axis_min - y_offset,
+  labels = dates,
+  srt = 45,
+  adj = c(1, 1),  # adj for x and y direction; (1,1) right and top aligned
+  xpd = TRUE,
+  cex = 0.8  # text size
+)
+
+```
+
+#ANOVAs of season and abundance 
+```{r seasonal biovolume ANOVA, include=FALSE}
+library(car)  # for ANOVA
+library(emmeans)  # for post-hoc tests
+
+anova_df <- biovolume_by_date %>%
+  filter(Tow == 200 & Station %in% c("ram", "nan", "NaN"))
+anova_df <- anova_df %>%
+  mutate(
+    Month = month(Date),
+    Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"
+    )
+  )
+anova_df$Season <- factor(anova_df$Season, levels = c("Winter", "Spring", "Summer", "Fall"))
+anova_model <- aov(biovol_conc ~ Season, data = anova_df)
+summary(anova_model)
+TukeyHSD(anova_model)
+
+anova_df$Month <- factor(anova_df$Month, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+anova_model_2 <- aov(biovol_conc ~ Month, data = anova_df)
+summary(anova_model_2)
+TukeyHSD(anova_model_2)
+
+kruskal.test(biovol_conc ~ Season, data = anova_df)
+
+anova_df$log_biovol <- log(anova_df$biovol_conc + 1)  # add 1 to avoid log(0)
+anova_model_3 <- aov(log_biovol ~ Season, data = anova_df)
+summary(anova_model_3)
+TukeyHSD(anova_model_3)
+
+anova_df$log_biovol <- log(anova_df$biovol_conc + 1)  # add 1 to avoid log(0)
+anova_model_4 <- aov(log_biovol ~ Month, data = anova_df)
+summary(anova_model_4)
+TukeyHSD(anova_model_4)
+```
+#Start of the PCA: try factoring by season
+#Import and combine data
+```{r import and combine dataframes, include=FALSE}
+pca_data <- read.csv("pca.csv")
+pca_data_df <- as.data.frame(pca_data)
+print(pca_data_df) 
+head(pca_data_df$Date, 10)
+pca_data_df$Date <- as.Date(pca_data_df$Date, format = "%m/%d/%Y")
+
+biovolume_by_date_filtered <- biovolume_by_date %>%
+  filter(Tow == 200)
+pca_data_filtered <- pca_data_df %>%
+  filter(Location == "Ram")
+
+# Join data
+pca_df <- left_join(pca_data_filtered, biovolume_by_date_filtered, by = c("Date" = "Date"))
+
+# Inspect result
+print(pca_df)
+
+pca_df <- na.omit(pca_df)
+```
+
+```{r z-scores, include=FALSE}
+library(vegan)
+library(ggfortify)
+library(FactoMineR)
+library(vcd)
+library(factoextra)
+pca_df <- pca_df %>%
+  mutate(
+    Month = month(Date),
+    Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"
+    )
+  )
+
+
+#how copes fall out by env factor
+# Replace 'data' with your data frame and adjust the column indices accordingly
+# Replace '1:4' with the indices of the fixed environmental factors you want to include
+pca_plot_1 <- fviz_pca_biplot(pca_result,
+
+                         geom.ind = "point",
+
+                         habillage = pca_df[,2],  # Include environmental factors
+
+                         choose.vars = list(contrib = 2),
+
+                         title = "PCA Plot 1"
+
+)
+print(pca_plot_1)
+
+#how samples fall out by env factor
+pca_plot_2 <- fviz_pca_ind(pca_result,
+
+                            geom.ind = "point",
+
+                            habillage = pca_df$Season,  # Include environmental factors
+
+                            addEllipses = TRUE, ellipse.level = 0.95,
+
+                            title = "PCA Plot Ram"
+
+)
+# Customize the plot as needed
+print(pca_plot_2)
+
+library(vegan)
+library(factoextra)
+
+# Suppose your environmental variables are columns in pca_df like this:
+env_vars <- pca_df[, c("Water_Temp_Avg", "Salinity_Avg", "Secchi.depth", "avg_chl_a", "biovol_conc", "Volume")]  # Replace with your numeric env variable names
+
+# Fit env vectors onto PCA result
+envfit_result <- envfit(pca_result, env_vars)
+
+# Create PCA plot with points colored by a grouping factor, e.g. Season
+pca_plot_3 <- fviz_pca_ind(pca_result,
+                        geom.ind = "point",
+                        habillage = pca_df$Season,
+                        addEllipses = TRUE,
+                        ellipse.level = 0.95,
+                        title = "PCA Ram")
+
+
+# Extract envfit vectors
+vectors <- scores(envfit_result, display = "vectors")
+
+# Scale vectors for plotting (adjust the multiplier to get suitable arrow lengths)
+arrow_scale <- 1  # tweak this to fit your plot
+
+# Create a data frame of vectors
+vectors_df <- as.data.frame(vectors * arrow_scale)
+vectors_df$env_var <- rownames(vectors_df)
+
+# Add arrows and labels to the plot
+pca_plot_3 +
+  geom_segment(data = vectors_df,
+               aes(x = 0, y = 0, xend = PC1, yend = PC2),
+               arrow = arrow(length = unit(0.3, "cm")),
+               color = "blue", size = 1) +
+  geom_text(data = vectors_df,
+            aes(x = PC1 * 1.1, y = PC2 * 1.1, label = env_var),
+            color = "blue",
+            size = 4)
+print(pca_plot_3)
+```
+#Standardize data
+#Z-scores
+```{r z-scores, include=FALSE}
+# Step 1: Identify numeric columns
+numeric_cols <- sapply(pca_df, is.numeric)
+
+# Step 2: Get column names of those numeric columns
+numeric_colnames <- names(numeric_cols[numeric_cols])
+
+exclude_cols <- c("Tow", "Salinity_Min", "Salinity_Max", "Water_Temp_Min", "Water_Temp_Max", "STD", "Fraction", "Biovolume_tot")
+
+# Step 4: Subset to only the numeric columns you want
+final_pca_columns <- setdiff(numeric_colnames, exclude_cols)
+
+# Step 5: Scale only the selected columns
+zscore_data <- scale(pca_df[, final_pca_columns])
+
+pca_result <- prcomp(zscore_data, center = TRUE, scale. = TRUE)
+# View principal components and explained variance
+summary(pca_result)
+# Shows how each variable contributes to each principal component
+pca_result$rotation
+# Scores of observations in PC space
+#head(pca_result$x)
+biplot(pca_result, scale = 0)
+
+
+zscore_df <- as.data.frame(zscore_data)
+numeric_cols <- sapply(zscore_df, is.numeric)
+sds <- apply(zscore_df[, numeric_cols], 2, sd)
+
+
+# See which are zero
+zero_var_cols <- names(sds[sds == 0])
+print(zero_var_cols)
+
+
+# After your PCA
+pca_result <- prcomp(zscore_data, center = TRUE, scale. = TRUE)
+
+# Inspect loadings (rotation)
+cat("Loadings (rotation):\n")
+print(head(pca_result$rotation, 10))
+
+# Inspect scores (x)
+cat("Scores (first few rows):\n")
+print(head(pca_result$x, 10))
+
+# Check a few more statistics
+cat("Standard deviations of PCs:\n")
+print(pca_result$sdev)
+
+cat("Variance explained per PC:\n")
+print((pca_result$sdev^2) / sum(pca_result$sdev^2))
+
+# If you try printing the full object, be mindful where the big numbers show up
+str(pca_result)
+
+summary(pca_result)
+```
+#Shannon Diversity Index Calculations
+```{r calculating SD for each sample, include=FALSE}
+sd_df <- object_counts_og_with_dates_no_detritus %>%
+ mutate(
+    Month = month(object_date),
+    Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"
+    )
+  )
+print(sd_df)
+
+# First, calculate proportions within each sample
+shannon_diversity <- sd_df %>%
+  group_by(object_date) %>%
+  summarise(
+    shannon_index = -sum(
+      (n_cor / sum(n_cor)) * log(n_cor / sum(n_cor))
+    )
+  )
+
+print(shannon_diversity)
+
+# Join with season info (assuming season is the same for each object_date)
+shannon_with_season <- shannon_diversity %>%
+  left_join(sd_df %>% select(object_date, Season, Month) %>% distinct(), by = "object_date") %>%
+  mutate(Year = year(object_date))
+
+# Plot Shannon diversity by season
+sd_box_plot <- ggplot(shannon_with_season, aes(x = Season, y = shannon_index, fill = Season)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5) +
+  facet_wrap(~ Year) +
+  labs(title = "Shannon Diversity Index by Season",
+       x = "Season",
+       y = "Shannon Diversity Index") +
+  theme_minimal() +
+  theme(legend.position = "none")
+print(sd_box_plot)
+
+shannon_with_season$Season <- factor(shannon_with_season$Season, levels = c("Winter", "Spring", "Summer", "Fall"))
+anova_model <- aov(shannon_index ~ Season, data = shannon_with_season)
+summary(anova_model)
+TukeyHSD(anova_model)
+
+shannon_with_season$Month <- factor(shannon_with_season$Month, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+anova_model_2 <- aov(shannon_index ~ Month, data = shannon_with_season)
+summary(anova_model_2)
+TukeyHSD(anova_model_2) #Significance between Sept and May
+```
+#NBSS
+#This step is using the same biovolume calculations as before except I am not aggregating by date and instead am leaving obj. biovolumes 
+```{r making the biovolume df for the NBSS, include=FALSE}
+# Instead of aggregating, keep the grouped data and calculate biovol_conc per row:
+biovolume_nbss <- Biovolume_df %>%
+  group_by(Date, Fraction, Volume, Tow, Station) %>%
+  mutate(
+    biovol_conc = if_else(
+      Fraction == 1,
+      Spherical_volume / (Volume / 1e6),
+      (Spherical_volume * (Fraction / 2)) / (Volume / 1e6)
+    )
+  ) %>%
+  ungroup()
+
+# Remove exact duplicate rows first
+biovolume_nbss <- biovolume_nbss %>% distinct()
+
+# Then join with unique combined_df to add object_esd
+combined_df_unique <- combined_df %>%
+  distinct(object_id, .keep_all = TRUE)
+
+biovolume_nbss <- biovolume_nbss %>%
+  left_join(combined_df_unique %>% select(object_id, object_esd),
+            by = "object_id")
+
+head(biovolume_nbss)
+```
+```{r making the bins for the NBSS, include=FALSE}
+library(dplyr)
+
+# Step 1: Define size bins (log scale often preferred)
+# Example: bins from min to max ESD with fixed log10-width of 0.2
+bin_breaks <- 10^(seq(log10(min(biovolume_nbss$object_esd, na.rm=TRUE)),
+                      log10(max(biovolume_nbss$object_esd, na.rm=TRUE)),
+                      by = 0.2))
+
+# Step 2: Assign each object to a bin
+biovolume_nbss <- biovolume_nbss %>%
+  mutate(
+    size_bin = cut(object_esd,
+                   breaks = bin_breaks,
+                   include.lowest = TRUE,
+                   right = FALSE)
+  )
+
+# Step 3: Calculate total biomass concentration per bin (sum of biovol_conc)
+nbss <- biovolume_nbss %>%
+  group_by(Date, size_bin) %>%
+  summarise(
+    total_biovol_conc = sum(biovol_conc, na.rm = TRUE),
+    bin_min = min(object_esd, na.rm = TRUE),
+    bin_max = max(object_esd, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Step 4: Calculate bin width for normalization
+nbss <- nbss %>%
+  mutate(
+    bin_width = bin_max - bin_min,
+    normalized_biovol = total_biovol_conc / bin_width
+  )
+
+# Step 5: Optional - log-transform for plotting (avoid zeros)
+nbss <- nbss %>%
+  filter(normalized_biovol > 0) %>%
+  mutate(
+    log_bin_mid = log10((bin_min + bin_max)/2),
+    log_biovol = log10(normalized_biovol)
+  )
+
+# View the NBSS dataframe
+print(nbss)
+```
+```{r okay now we print it, include=FALSE}
+library(ggplot2)
+
+nbss_plot <- ggplot(nbss, aes(x = log_bin_mid, y = log_biovol, color = as.factor(Date))) +
+  geom_point(size = 3) +
+  geom_line() +
+  labs(
+    x = "Log10 Object Size (µm ESD)",
+    y = "Log10 Normalized Biovolume Concentration",
+    color = "Date",
+    title = "Normalized Biomass Size Spectra (NBSS)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom"
+  )
+print(nbss_plot)
+```
+#Take a look at GAMs and NBSS
+#Make 1 GAM for all environmental factors across all dates modeling biodiversity over time. Start with SD (richness and evenness) Johnson et al 2011 for biodiversity indices. Add season column to pca data
+
+#Let's make a biodiversity GAM
+```{r making the GAM for 200 micron, include=FALSE}
+#install.packages("mgcv")
+#install.packages("nlme")
+library(mgcv)
+library(nlme)
+
+pca_gam <- pca_data_df %>%
+  mutate(
+    object_date = Date
+  )
+# Join with season info (assuming season is the same for each object_date)
+shannon_with_season_gam <- shannon_diversity %>%
+  left_join(pca_gam %>% select(object_date, avg_chl_a, Water_Temp_Avg, Salinity_Avg, Secchi.depth) %>% distinct(), by = "object_date") %>%
+  mutate(Year = year(object_date), 
+         Month = month(object_date), 
+         Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"))
+
+shannon_with_season_gam <- na.omit(shannon_with_season_gam)
+
+# Fit model
+gam_1 <- gam(shannon_index ~ s(avg_chl_a) + s(Water_Temp_Avg) + s(Salinity_Avg) +s(Secchi.depth) +s(Month), family = gaussian(), data = shannon_with_season_gam)
+
+# Summary
+summary(gam_1)
+
+gam_2 <- gam(shannon_index ~ s(Month) + s(Secchi.depth), family = gaussian(), data = shannon_with_season_gam) #Second GAM with only the significant response variables
+summary(gam_2)
+# Plot
+plot(gam_2, pages = 1, rug = TRUE)
+
+
+
+
+# Plot
+plot(gam_1, pages = 1, rug = TRUE)
+
+# Diagnostics
+gam.check(gam_1)
+
+# Predict
+pred <- predict(gam_1, newdata = shannon_with_season_gam)
+plot(pred)
+
+
+```
+
+#LOOKING AT WOOD ISLAND!
+```{r aggregates all pre-adjusted biovols by date WOOD ONLY, include=FALSE}
+# Create sequence of summer dates for 2024 and 2025 (e.g., every 1st of June, July, August)
+#summer_dates <- c(
+ # seq(as.Date("2024-07-02"), as.Date("2025-07-23"), by = "1 week"),
+ # seq(as.Date("2025-06-01"), as.Date("2025-07-01"), by = "1 week")
+#)
+
+# Filter your data to include only summer months in 2024 and 2025
+summer_data <- biovolume_by_date %>%
+  filter(Tow == 200, Station == "wood",
+         (month(Date) %in% 6:8) & (year(Date) %in% c(2024, 2025)))
+
+# Convert Date to factor to control x-axis breaks
+summer_data <- summer_data %>%
+  mutate(Date = factor(Date, levels = sort(unique(Date))))
+
+biovolume_plot_200_wood <- ggplot(summer_data, aes(x = Date, y = biovol_conc)) +
+  geom_line(group = 1, color = "black", size = 1.0) +
+  geom_point() +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 22, hjust = 0.5),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", size = 0.5)
+  ) +
+  scale_x_discrete(
+    labels = function(x) format(as.Date(x), "%b %d %Y")
+  ) +
+  scale_y_continuous(labels = scales::label_number(scale = 1, accuracy = 0.0001)) +
+  labs(
+    title = NULL,
+    x = "Date",
+    y = expression("BioVolume (individuals" ~ m^{-3} * ")")
+  )
+
+# Plot for Tow = 700
+biovolume_plot_700_wood <- ggplot(data = biovolume_by_date %>% filter(Tow == 700), aes(x = Date, y = biovol_conc)) +
+  geom_line(color = "black", size = 1.5) +  # Thicker line with size = 1.5
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 22, hjust = 0.5),
+    panel.grid = element_blank(),  # Remove all grid lines
+    axis.line = element_line(color = "black", size = 0.5)  # Add axis lines
+  ) +
+  scale_x_date(
+    date_breaks = "1 week", 
+    date_labels = "%b %d"  # Format for Month Day (e.g., "Apr 30")
+  ) +
+  scale_y_continuous(labels = label_number(scale = 1, accuracy = 0.01)) +
+  labs(
+    title = NULL,
+    x = "Date",
+    y = expression("BioVolume (individuals" ~ mL^{-3} * ")")
+  )
+
+# Print both plots
+print(biovolume_plot_200_wood)
+#ggsave("biovolume_plot_200.png", plot = biovolume_plot_200, dpi = 300)
+#browseURL("biovolume_plot_200.png")
+print(biovolume_plot_700_wood)
+```
