@@ -61,7 +61,7 @@ tsv_data <- lapply(tsv_files, function(file) {
 
 # Combine safely
 combined_df_1 <- bind_rows(tsv_data)
-
+#combined_df_1 <- combined_df_1[!duplicated(combined_df_1), ] #gets rif of exact duplicates
 # View result
 head(combined_df_1)
 ```
@@ -88,7 +88,9 @@ for (item in tsv_data) {
 ```{r import Aug-Sept zip, include=FALSE}
 # Define the path to your zip file
 zip_file <- "/Volumes/Seagate/Aug_Sept/Aug_Sept.zip"
-extracted_dir <- "path/to/R_Work/EcoTaxa_Test"  # <-- Replace with actual path
+
+# Give this extraction a unique subfolder
+extracted_dir <- "EcoTaxa_Test/Aug_Sept"
 
 # Create output directory if needed
 if (!dir.exists(extracted_dir)) {
@@ -115,12 +117,11 @@ tsv_data <- lapply(tsv_files, function(file) {
     }
   }
 
-  df$source_file <- basename(file)  # Optional: tag rows with source file
-  df
 })
 
 # Combine safely
 combined_df_2 <- bind_rows(tsv_data)
+#combined_df_2 <- combined_df_2[!duplicated(combined_df_2), ] #gets rid of exact duplicates
 
 # View result
 head(combined_df_2)
@@ -149,6 +150,7 @@ combined_df$sample_tot_vol[combined_df$object_date == as.Date("2025-06-23") & as
 combined_df$sample_net_mesh[combined_df$sample_net_mesh == 99999] <- 700
 combined_df$sample_tot_vol[combined_df$sample_tot_vol == 99999.000000000000000] <- 1251846.943
 combined_df$sample_stationid[is.na(combined_df$sample_stationid)] <- "ram"
+#combined_df <- combined_df[!duplicated(combined_df), ] #gets rid of exact duplicates
 head(combined_df)
 
 # Get unique dates
@@ -162,6 +164,9 @@ print(n_unique_dates)
 
 # Print the unique dates
 print(unique_dates)
+
+count_unique <- length(unique(combined_df$object_id))
+print(count_unique)
 ```
 
 #Defining variables, all of this code came from the EcoTaxa and EcoPart manuals
@@ -1577,7 +1582,10 @@ biovolume_nbss <- biovolume_nbss %>%
   left_join(combined_df_unique %>% select(object_id, object_esd),
             by = "object_id")
 
-biovolume_nbss <- as.data.frame(biovolume_nbss)
+setDT(biovolume_nbss)
+biovolume_nbss[, sample_id := as.character(Date)]
+biovolume_nbss <- biovolume_nbss %>%
+  mutate(Spherical_Volume_mm3 = Spherical_volume * 1000)
 head(biovolume_nbss)
 ```
 ```{r making the bins for the NBSS, include=FALSE}
@@ -1823,7 +1831,8 @@ NBSS <- function(biovolume_nbss, N = TRUE) {
     Bvtot <- b - a
     
     # Sum biovol_conc where Volume (converted from m^3 to mm^3) falls within [a, b)
-    add_ <- biovolume_nbss[(Volume * 1e9 > a) & (Volume * 1e9 <= b), sum(biovol_conc, na.rm = TRUE)]
+    add_ <- biovolume_nbss[(Spherical_Volume_mm3 > a) & (Spherical_Volume_mm3 <= b), sum(biovol_conc, na.rm=TRUE)]
+
     
     if (N) {
       add_ <- add_ / Bvtot  # Normalize by interval volume
@@ -1865,7 +1874,7 @@ NBSS.plot <- function(biovolume_nbss, ESD = TRUE) {
   biovolume_nbss <- as.data.table(biovolume_nbss)
   
   # Get unique samples (adjust column name if different)
-  samples <- unique(biovolume_nbss$object_id)
+  samples <- unique(biovolume_nbss$sample_id)
   
   # Prepare list to hold NBSS results per sample
   nbss_list <- vector("list", length(samples))
@@ -1874,7 +1883,7 @@ NBSS.plot <- function(biovolume_nbss, ESD = TRUE) {
     samp <- samples[i]
     
     # Subset data for current sample
-    subset_data <- biovolume_nbss[object_id == samp]
+    subset_data <- biovolume_nbss[sample_id == samp]
     
     # Calculate NBSS for the sample
     nbss_res <- NBSS(subset_data, N = TRUE)
@@ -1888,7 +1897,7 @@ NBSS.plot <- function(biovolume_nbss, ESD = TRUE) {
     }
     
     # Add sample ID for plotting
-    nbss_res[, object_id := samp]
+    nbss_res[, sample_id := samp]
     
     # Store result
     nbss_list[[i]] <- nbss_res
@@ -1909,7 +1918,7 @@ NBSS.plot <- function(biovolume_nbss, ESD = TRUE) {
   }
   
   # Plot all samples with color grouping
-  p <- ggplot(all_samples_nbss, aes(x = Spectra, y = NBSS, color = object_id)) +
+  p <- ggplot(all_samples_nbss, aes(x = Spectra, y = NBSS, color = sample_id)) +
     geom_point() +
     scale_x_log10(limits = x_limits) +
     labs(
