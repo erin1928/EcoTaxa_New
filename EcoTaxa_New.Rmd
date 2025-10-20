@@ -1577,6 +1577,7 @@ biovolume_nbss <- biovolume_nbss %>%
   left_join(combined_df_unique %>% select(object_id, object_esd),
             by = "object_id")
 
+biovolume_nbss <- as.data.frame(biovolume_nbss)
 head(biovolume_nbss)
 ```
 ```{r making the bins for the NBSS, include=FALSE}
@@ -1615,12 +1616,12 @@ nbss <- nbss %>%
   )
 
 # Step 5: Optional - log-transform for plotting (avoid zeros)
-nbss <- nbss %>%
-  filter(normalized_biovol > 0) %>%
-  mutate(
-    log_bin_mid = log10((bin_min + bin_max)/2),
-    log_biovol = log10(normalized_biovol)
-  )
+#nbss <- nbss %>%
+ # filter(normalized_biovol > 0) %>%
+#  mutate(
+   # log_bin_mid = log10((bin_min + bin_max)/2),
+  #  log_biovol = log10(normalized_biovol)
+ # )
 
 # View the NBSS dataframe
 print(nbss)
@@ -1766,4 +1767,209 @@ print(biovolume_plot_200_wood)
 #ggsave("biovolume_plot_200.png", plot = biovolume_plot_200, dpi = 300)
 #browseURL("biovolume_plot_200.png")
 print(biovolume_plot_700_wood)
+```
+
+```{r this is code copied from https://rdrr.io/github/clatrellu/Ecotaxa_R/src/R/nbss.R, include=FALSE}
+#install.packages("data.table")
+library(data.table)
+
+#' NBSS : Normalized Biovolume Size Spectra calculation for a given sample, 
+#' calculate several NBSS spectra to compare samples
+#'
+#' @param objects A data table containing objects in rows (not necessarily 
+#' from the same sample) and details about the objects in the columns. 
+#' @param samples A data table containing samples in rows and details about 
+#' the latter in columns.
+#' @param sample a string containing the name of the sample for which to calculate the NBSS
+#' @return a data table containing two columns, the first with the size spectra, 
+#' given in mm^3, the second is the NBSS for each interval of size.
+#' @note The variables used are called biovolumes but to simplify we actually use 
+#' volumes. Since biovolumes are the volumes normalized by the same total volume 
+#' for all objects in a sample, the result is the same, except that size spectra 
+#' are given in mm^3 instead of mm^3/m^3
+
+NBSS <- function(biovolume_nbss, N = TRUE) {
+  
+  #if (nrow(biovolume_nbss) < 1000) {
+   # warning("Warning: this sample contains less than 1000 objects; the NBSS plot might not be #representative.")
+  #}
+  
+  # Calculate lower bound volume (Bvmin) from minimum ESD (µm to mm^3)
+  min_esd <- min(biovolume_nbss$object_esd, na.rm = TRUE)
+  min_radius_mm <- (min_esd * 1e-3) / 2
+  Bvmin <- (4/3) * pi * (min_radius_mm)^3
+  
+  # Calculate upper bound volume (top) from maximum ESD (µm to mm^3)
+  max_esd <- max(biovolume_nbss$object_esd, na.rm = TRUE)
+  max_radius_mm <- (max_esd * 1e-3) / 2
+  top <- (4/3) * pi * (max_radius_mm)^3
+  
+  # Create volume intervals increasing by factor 2^(0.25) until top is reached
+  intervals <- Bvmin
+  current_volume <- Bvmin
+  while (current_volume < top) {
+    current_volume <- current_volume * 2^(0.25)
+    intervals <- c(intervals, current_volume)
+  }
+  
+  # Initialize vectors for results
+  x <- numeric()
+  y <- numeric()
+  
+  # Loop through intervals to calculate NBSS values
+  for (i in 1:(length(intervals) - 1)) {
+    a <- intervals[i]
+    b <- intervals[i + 1]
+    Bvtot <- b - a
+    
+    # Sum biovol_conc where Volume (converted from m^3 to mm^3) falls within [a, b)
+    add_ <- biovolume_nbss[(Volume * 1e9 > a) & (Volume * 1e9 <= b), sum(biovol_conc, na.rm = TRUE)]
+    
+    if (N) {
+      add_ <- add_ / Bvtot  # Normalize by interval volume
+    }
+    
+    y <- c(y, add_)
+    x <- c(x, b)
+  }
+  
+  nbss.plot <- data.table(Spectra = x, NBSS = y)
+  
+  # Remove intervals with zero NBSS and log-transform NBSS
+  nbss.plot <- nbss.plot[NBSS > 0]
+  nbss.plot[, NBSS := log10(NBSS)]
+  
+  return(nbss.plot)
+}
+
+#' Plotting of the NBSS - Normalized Biovolume Size Spectra - of a given sample
+#' @import ggplot2
+#' @param objects A data table containing objects as rows and details on these objects in the 
+#' columns. This argument will be passed in the NBSS function
+#' @param samples A data table containing samples in rows and details about 
+#' the latter in columns.
+#' @param sample_name A string containing the name of the sample from which to extract objects 
+#' and do an NBSS analysis.
+#' @param ESD If ESD is true, by default, the x axis is expressed as ESD (Eqivalent spherical 
+#' diameter for a given volume) in [µm]. Otherwise, volumes will be on the x-axis in [mm^3]
+#' @return an object of the type ggplot which can then be plotted.
+#' 
+#' @examples 
+#' p <- NBSS.plot(objects=objects,samples=samples,sample_name=sample_id,ESD=TRUE)
+#' p 
+#' @export NBSS.plot
+
+NBSS.plot <- function(biovolume_nbss, ESD = TRUE) {
+  
+  # Ensure data is a data.table
+  biovolume_nbss <- as.data.table(biovolume_nbss)
+  
+  # Get unique samples (adjust column name if different)
+  samples <- unique(biovolume_nbss$object_id)
+  
+  # Prepare list to hold NBSS results per sample
+  nbss_list <- vector("list", length(samples))
+  
+  for (i in seq_along(samples)) {
+    samp <- samples[i]
+    
+    # Subset data for current sample
+    subset_data <- biovolume_nbss[object_id == samp]
+    
+    # Calculate NBSS for the sample
+    nbss_res <- NBSS(subset_data, N = TRUE)
+    
+    # Convert Spectra units if ESD requested
+    if (ESD) {
+      # Convert Spectra from m^3 to mm^3
+      nbss_res[, Spectra := Spectra * 1e9]
+      # Convert volume (mm^3) to ESD (µm)
+      nbss_res[, Spectra := 2 * 1e3 * (Spectra * 3 / (4 * pi))^(1/3)]
+    }
+    
+    # Add sample ID for plotting
+    nbss_res[, object_id := samp]
+    
+    # Store result
+    nbss_list[[i]] <- nbss_res
+  }
+  
+  # Combine all sample results into one data.table
+  all_samples_nbss <- rbindlist(nbss_list)
+  
+  # Calculate axis limits based on all samples ESD range (if ESD=TRUE)
+  if (ESD) {
+    min_esd <- min(biovolume_nbss$object_esd, na.rm = TRUE)
+    max_esd <- max(biovolume_nbss$object_esd, na.rm = TRUE)
+    x_limits <- c(min_esd, max_esd)
+    x_label <- "Equivalent Spherical Diameter [µm]"
+  } else {
+    x_limits <- NULL
+    x_label <- "Volume [mm^3]"
+  }
+  
+  # Plot all samples with color grouping
+  p <- ggplot(all_samples_nbss, aes(x = Spectra, y = NBSS, color = object_id)) +
+    geom_point() +
+    scale_x_log10(limits = x_limits) +
+    labs(
+      x = x_label,
+      y = "NBSS [mm^3/mm^3/m^3]",
+      color = "Sample ID",
+      title = "NBSS Size Spectra for All Samples"
+    ) +
+    theme_minimal()
+  
+  return(p)
+}
+#' @export BSS.plot
+
+p <- NBSS.plot(biovolume_nbss, ESD = TRUE)
+print(p)
+```  
+
+```{r this is code copied from https://rdrr.io/github/clatrellu/Ecotaxa_R/src/R/nbss.R, include=FALSE}
+BSS.plot <- function(biovolume_nbss,ESD=TRUE){
+  
+  sample_name <- biovolume_nbss[,unique(object_id)]
+  data <- NBSS(biovolume_nbss,N=FALSE)
+  
+  #convert back to ESD :
+  
+  data[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)]
+  
+  min_esd <- unique(bin_min = biovolume_nbss %>% min(biovolume_nbss$object_esd))
+  max_esd <- unique(bin_max = biovolume_nbss %>% max(biovolume_nbss$object_esd))
+  
+  p <- ggplot(data,aes(x=Spectra,y=NBSS)) + 
+    geom_point()  + scale_x_log10(limits=c(min_esd,max_esd))+
+    labs(x="Equivalent Spherical Diameter [µm]",y="BSS [mm^3/m^3]",title = paste("BSS:",sample_name))
+  
+  return(p)
+}
+
+#this is for one sample at a time
+NBSS.plot <- function(biovolume_nbss,ESD=TRUE){
+  
+  sample_name <- unique(biovolume_nbss$object_id)
+  nbss_data <- NBSS(biovolume_nbss,N=TRUE)
+  
+  #convert back to ESD :
+  
+  # Convert Spectra from m^3 to mm^3 first
+  nbss_data[, Spectra := Spectra * 1e9]  
+
+# Then convert volume (mm^3) to ESD (µm)
+  nbss_data[, Spectra := 2 * 1e3 * (Spectra * 3 / (4 * pi))^(1/3)]
+  
+  min_esd <- min(biovolume_nbss$object_esd, na.rm = TRUE)
+  max_esd <- max(biovolume_nbss$object_esd, na.rm = TRUE)
+  
+  p <- ggplot(nbss_data,aes(x=Spectra,y=NBSS)) + 
+    geom_point()  + scale_x_log10(limits=c(min_esd,max_esd))+
+    labs(x="Equivalent Spherical Diameter [µm]",y="NBSS [mm^3/mm^3/m^3]",title = paste("NBSS:",sample_name))
+  
+  return(p)
+}
+
 ```
