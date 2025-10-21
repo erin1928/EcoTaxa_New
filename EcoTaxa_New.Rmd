@@ -167,6 +167,11 @@ print(unique_dates)
 
 count_unique <- length(unique(combined_df$object_id))
 print(count_unique)
+
+count_unique_2 <- length(unique(combined_df_unique$object_id))
+print(count_unique_2)
+count_date <- length(unique(combined_df_unique$object_date))
+print(count_date)
 ```
 
 #Defining variables, all of this code came from the EcoTaxa and EcoPart manuals
@@ -181,9 +186,9 @@ Volume <- (combined_df$sample_tot_vol)/(100^3) #converting to m^3 since the Goog
 #Test case for a few random dates and run biovolume code to see if it is using the correct splitting factor
 ```{r Plain Biovol, include=FALSE}
 Radius_circle <- sqrt(Area_mm2/pi)
-Spherical_Volume <- ((4/3)*pi*(((combined_df$object_esd/2)*combined_df$process_particle_pixel_size_mm)^3))/1000 #ESD in pixels to cm^3 divide by 1000 to convert to mL (vol 1 individual)
+Spherical_Volume <- ((4/3)*pi*(((combined_df_unique$object_esd/2)*combined_df_unique$process_particle_pixel_size_mm)^3))/1000 #ESD in pixels to cm^3 divide by 1000 to convert to mL (vol 1 individual)
 #Divided by 2 to get radius
-Biovolume <- ((Spherical_Volume*(combined_df$acq_sub_part)) / (combined_df$sample_tot_vol/(100^3)))
+Biovolume <- ((Spherical_Volume*(combined_df_unique$acq_sub_part)) / (combined_df_unique$sample_tot_vol/(100^3)))
 ```
 ```{r Plain Biovol dataframe, include=FALSE}
 
@@ -208,13 +213,13 @@ Biovolume_df$Date <- as.Date(Biovolume_df$Date)
 # Assuming combined_df already contains object_date and acq_sub_part
 Biovolume_df <- data.frame(
   Biovolume = Biovolume,  # Replace this with your Biovolume vector
-  Date = combined_df$object_date,  # Date from object_date column
-  Fraction = combined_df$acq_sub_part, # Include acq_sub_part here
-  Volume = combined_df$sample_tot_vol,# Include sample_net_mesh here
+  Date = combined_df_unique$object_date,  # Date from object_date column
+  Fraction = combined_df_unique$acq_sub_part, # Include acq_sub_part here
+  Volume = combined_df_unique$sample_tot_vol,# Include sample_net_mesh here
   Spherical_volume = Spherical_Volume,
-  Tow = combined_df$sample_net_mesh, # Include sample_net_mesh here
-  Station = combined_df$sample_stationid, #Allow for selection of specific sampling sites
-  object_id = combined_df$object_id
+  Tow = combined_df_unique$sample_net_mesh, # Include sample_net_mesh here
+  Station = combined_df_unique$sample_stationid, #Allow for selection of specific sampling sites
+  object_id = combined_df_unique$object_id
  )
 
 print(Biovolume_df)
@@ -324,7 +329,7 @@ library(dplyr)
 library(tidyr)
 library(forcats)
 
-object_counts_og <- combined_df %>%
+object_counts_og <- combined_df_unique %>%
   filter(
     sample_net_mesh %in% c("200"),
     sample_stationid %in% c("ram", "ram_island", "na", "NaN"),
@@ -414,7 +419,7 @@ print(stacked_bar_graph_og)
 #Count data and combining categories including all detritus and with corrected splitting fraction calculation Josh and I came up with
 ```{r getting count data for time series and keeping things in their date, include=FALSE}
 # Final summarization with object_date included
-object_counts_og_with_dates <- combined_df %>%
+object_counts_og_with_dates <- combined_df_unique %>%
   filter(
     sample_net_mesh %in% c("200"),
     sample_stationid %in% c("ram", "ram_island", "na", "NaN")
@@ -460,7 +465,7 @@ print(object_counts_og_with_dates)
 #Getting count data but excluding detritus categories so the ensuing graphs do not at to 100%
 ```{r getting count data for time series and keeping things in their date, include=FALSE}
 # Final summarization with object_date included
-object_counts_og_with_dates_no_detritus <- combined_df %>%
+object_counts_og_with_dates_no_detritus <- combined_df_unique %>%
   filter(
     sample_net_mesh %in% c("200"),
     sample_stationid %in% c("ram", "na", "NaN", "ram_island"),
@@ -534,7 +539,7 @@ print(relative_abundance_df)
 
 #Relative abundance calculations including all detritus. I also created a new object counts df to include the detritus categories that are missing in the original. I also binned all detritus and other zooplankton into detritus and other categories
 ```{r calculating relative abundances for 200 tow across all dates including detritus, include=FALSE}
-object_counts_detritus <- combined_df %>%
+object_counts_detritus <- combined_df_unique %>%
   filter(
     sample_net_mesh %in% c("200"),
     sample_stationid %in% c("ram", "ram_island", "na", "NaN")) %>%
