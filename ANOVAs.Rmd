@@ -1,0 +1,71 @@
+---
+title: "ANOVAs"
+author: "Erin Anderson"
+date: "2025-11-02"
+output: html_document
+---
+
+#ANOVAs of season and abundance 
+```{r seasonal biovolume ANOVA, include=FALSE}
+library(car)  # for ANOVA
+library(emmeans)  # for post-hoc tests
+
+anova_df <- biovolume_by_date %>%
+  filter(Tow == 200 & Station %in% c("ram", "nan", "NaN"))
+anova_df <- anova_df %>%
+  mutate(
+    Month = month(Date),
+    Year = year(Date),
+    Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"
+    )
+  )
+anova_df$Season <- factor(anova_df$Season, levels = c("Winter", "Spring", "Summer", "Fall"))
+anova_model <- aov(biovol_conc ~ Season, data = anova_df)
+summary(anova_model)
+TukeyHSD(anova_model)
+
+anova_df$Month <- factor(anova_df$Month, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+anova_model_2 <- aov(biovol_conc ~ Month, data = anova_df)
+summary(anova_model_2)
+TukeyHSD(anova_model_2)
+
+kruskal.test(biovol_conc ~ Season, data = anova_df)
+
+anova_df$log_biovol <- log(anova_df$biovol_conc + 1)  # add 1 to avoid log(0)
+anova_model_3 <- aov(log_biovol ~ Season, data = anova_df)
+summary(anova_model_3)
+TukeyHSD(anova_model_3)
+
+anova_df$log_biovol <- log(anova_df$biovol_conc + 1)  # add 1 to avoid log(0)
+anova_model_4 <- aov(log_biovol ~ Month, data = anova_df)
+summary(anova_model_4)
+TukeyHSD(anova_model_4)
+
+anova_df$log_biovol <- log(anova_df$biovol_conc + 1)
+anova_df$Year <- factor(anova_df$Year, levels = c("2024", "2025"))
+anova_df$Season <- factor(anova_df$Season, levels = c("Winter", "Spring", "Summer", "Fall"))
+anova_df$Month <- factor(anova_df$Month, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+anova_model_5 <- aov(log_biovol ~ Month * Year, data = anova_df)
+summary(anova_model_5) #Significance Month:Year p = 0.000231 ***
+TukeyHSD(anova_model_5)
+tukey_results_1 <- TukeyHSD(anova_model_5)
+# Combine all TukeyHSD results into one data frame
+tukey_df_1 <- do.call(rbind, lapply(tukey_results_1, as.data.frame))
+
+# Add a column showing which factor each result came from
+tukey_df_1$Term <- rep(names(tukey_results_1), times = sapply(tukey_results_1, nrow))
+
+anova_df$log_biovol <- log(anova_df$biovol_conc + 1)
+anova_df$Year <- factor(anova_df$Year, levels = c("2024", "2025"))
+anova_df$Season <- factor(anova_df$Season, levels = c("Winter", "Spring", "Summer", "Fall"))
+anova_df$Month <- factor(anova_df$Month, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+anova_df$log_biovol <- log(anova_df$biovol_conc + 1)  # add 1 to avoid log(0)
+anova_model_6 <- aov(log_biovol ~ Season * Year, data = anova_df)
+summary(anova_model_6)
+TukeyHSD(anova_model_6)
+
+```

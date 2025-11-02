@@ -1,0 +1,77 @@
+---
+title: "Wood_Island"
+author: "Erin Anderson"
+date: "2025-11-02"
+output: html_document
+---
+
+#LOOKING AT WOOD ISLAND!
+```{r aggregates all pre-adjusted biovols by date WOOD ONLY, include=FALSE}
+# Create sequence of summer dates for 2024 and 2025 (e.g., every 1st of June, July, August)
+#summer_dates <- c(
+ # seq(as.Date("2024-07-02"), as.Date("2025-07-23"), by = "1 week"),
+ # seq(as.Date("2025-06-01"), as.Date("2025-07-01"), by = "1 week")
+#)
+
+# Filter your data to include only summer months in 2024 and 2025
+summer_data <- biovolume_by_date %>%
+  filter(Tow == 200, Station == "wood",
+         (month(Date) %in% 6:8) & (year(Date) %in% c(2024, 2025)))
+
+# Convert Date to factor to control x-axis breaks
+summer_data <- summer_data %>%
+  mutate(Date = factor(Date, levels = sort(unique(Date))))
+
+biovolume_plot_200_wood <- ggplot(summer_data, aes(x = Date, y = biovol_conc)) +
+  geom_line(group = 1, color = "black", size = 1.0) +
+  geom_point() +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 22, hjust = 0.5),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", size = 0.5)
+  ) +
+  scale_x_discrete(
+    labels = function(x) format(as.Date(x), "%b %d %Y")
+  ) +
+  scale_y_continuous(labels = scales::label_number(scale = 1, accuracy = 0.0001)) +
+  labs(
+    title = NULL,
+    x = "Date",
+    y = expression("BioVolume (individuals" ~ m^{-3} * ")")
+  )
+
+# Plot for Tow = 700
+biovolume_plot_700_wood <- ggplot(data = biovolume_by_date %>% filter(Tow == 700), aes(x = Date, y = biovol_conc)) +
+  geom_line(color = "black", size = 1.5) +  # Thicker line with size = 1.5
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 22, hjust = 0.5),
+    panel.grid = element_blank(),  # Remove all grid lines
+    axis.line = element_line(color = "black", size = 0.5)  # Add axis lines
+  ) +
+  scale_x_date(
+    date_breaks = "1 week", 
+    date_labels = "%b %d"  # Format for Month Day (e.g., "Apr 30")
+  ) +
+  scale_y_continuous(labels = label_number(scale = 1, accuracy = 0.01)) +
+  labs(
+    title = NULL,
+    x = "Date",
+    y = expression("BioVolume (individuals" ~ mL^{-3} * ")")
+  )
+
+# Print both plots
+print(biovolume_plot_200_wood)
+#ggsave("biovolume_plot_200.png", plot = biovolume_plot_200, dpi = 300)
+#browseURL("biovolume_plot_200.png")
+print(biovolume_plot_700_wood)
+```

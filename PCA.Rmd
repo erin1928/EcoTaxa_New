@@ -1,0 +1,214 @@
+---
+title: "PCA"
+author: "Erin Anderson"
+date: "2025-11-02"
+output: html_document
+---
+
+#Start of the PCA: try factoring by season
+#Import and combine data
+```{r import and combine dataframes, include=FALSE}
+pca_data <- read.csv("pca.csv")
+pca_data_df <- as.data.frame(pca_data)
+print(pca_data_df) 
+head(pca_data_df$Date, 10)
+pca_data_df$Date <- as.Date(pca_data_df$Date, format = "%m/%d/%Y")
+
+biovolume_by_date_filtered <- biovolume_by_date %>%
+  filter(Tow == 200)
+pca_data_filtered <- pca_data_df %>%
+  filter(Location == "Ram")
+
+# Join data
+pca_df <- left_join(pca_data_filtered, biovolume_by_date_filtered, by = c("Date" = "Date"))
+
+# Inspect result
+print(pca_df)
+
+pca_df <- na.omit(pca_df)
+```
+
+```{r pca plots, include=FALSE}
+library(vegan)
+library(ggfortify)
+library(FactoMineR)
+library(vcd)
+library(factoextra)
+pca_df <- pca_df %>%
+  mutate(
+    Month = month(Date),
+    Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"
+    )
+  )
+
+
+#how copes fall out by env factor
+# Replace 'data' with your data frame and adjust the column indices accordingly
+# Replace '1:4' with the indices of the fixed environmental factors you want to include
+pca_plot_1 <- fviz_pca_biplot(pca_result,
+
+                         geom.ind = "point",
+
+                         habillage = pca_df[,2],  # Include environmental factors
+
+                         choose.vars = list(contrib = 2),
+
+                         title = "PCA Plot 1"
+
+)
+print(pca_plot_1)
+
+#how samples fall out by env factor
+pca_plot_2 <- fviz_pca_ind(pca_result,
+
+                            geom.ind = "point",
+
+                            habillage = pca_df$Season,  # Include environmental factors
+
+                            addEllipses = TRUE, ellipse.level = 0.95,
+
+                            title = "PCA Plot Ram"
+
+)
+# Customize the plot as needed
+print(pca_plot_2)
+
+library(vegan)
+library(factoextra)
+
+# Suppose your environmental variables are columns in pca_df like this:
+env_vars <- pca_df[, c("Water_Temp_Avg", "Salinity_Avg", "Secchi.depth", "avg_chl_a", "biovol_conc", "Volume")]  # Replace with your numeric env variable names
+
+pca_scores <- as.data.frame(pca_result$x)
+pca_scores$Season <- pca_df$Season
+
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = Season, shape = Season)) +
+  geom_point(size = 3, stroke = 1.1) +
+  scale_shape_manual(values = c("Winter" = 15, "Spring" = 16, "Summer" = 17, "Fall" = 18)) +
+  theme_minimal()
+
+# Fit env vectors onto PCA result
+envfit_result <- envfit(pca_result, env_vars)
+
+pca_plot_3 <- fviz_pca_ind(
+  pca_result,
+  geom.ind = "point",
+  habillage = pca_df$Season,
+  addEllipses = FALSE,
+  title = "PCA Ram",
+  geom.ind.params = list(size = 6, stroke = 1.1, alpha = 0.9)
+) +
+  scale_shape_manual(values = c("Winter" = 15, "Spring" = 16, "Summer" = 17, "Fall" = 18)) +
+  theme_minimal()
+
+# Scale vectors for plotting (adjust the multiplier to get suitable arrow lengths)
+arrow_scale <- 1  # tweak this to fit your plot
+
+# Create a data frame of vectors
+vectors_df <- as.data.frame(vectors * arrow_scale)
+vectors_df$env_var <- rownames(vectors_df)
+
+# Add arrows and labels to the plot
+pca_plot_3 +
+  geom_segment(data = vectors_df,
+               aes(x = 0, y = 0, xend = PC1, yend = PC2),
+               arrow = arrow(length = unit(0.3, "cm")),
+               color = "blue", size = 1) +
+  geom_text(data = vectors_df,
+            aes(x = PC1 * 1.1, y = PC2 * 1.1, label = env_var),
+            color = "blue",
+            size = 4)
+print(pca_plot_3)
+
+
+# Convert PCA scores to a data frame
+pca_scores <- as.data.frame(pca_result$x)
+pca_scores$Season <- pca_df$Season
+
+# Calculate explained variance for axis labels
+eig <- pca_result$sdev^2 / sum(pca_result$sdev^2)
+
+# Create PCA plot
+pca_4 <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = Season, shape = Season)) +
+  geom_point(size = 2.5, stroke = 1.1) +
+  scale_shape_manual(values = c("Winter" = 15, "Spring" = 16, "Summer" = 17, "Fall" = 18)) +
+  theme_minimal() +
+  labs(
+    x = paste0("PC1 (", round(eig[1] * 100, 1), "%)"),
+    y = paste0("PC2 (", round(eig[2] * 100, 1), "%)"),
+    title = "PCA Ram"
+  ) +
+  # Add horizontal and vertical lines at 0
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black")
+
+print(pca_4)
+ggsave("pca_plot_4.png", plot = pca_4, dpi = 300)
+browseURL("pca_plot_4.png")
+```
+#Standardize data
+#Z-scores
+```{r z-scores, include=FALSE}
+# Step 1: Identify numeric columns
+numeric_cols <- sapply(pca_df, is.numeric)
+
+# Step 2: Get column names of those numeric columns
+numeric_colnames <- names(numeric_cols[numeric_cols])
+
+exclude_cols <- c("Tow", "Salinity_Min", "Salinity_Max", "Water_Temp_Min", "Water_Temp_Max", "STD", "Fraction", "Biovolume_tot")
+
+# Step 4: Subset to only the numeric columns you want
+final_pca_columns <- setdiff(numeric_colnames, exclude_cols)
+
+# Step 5: Scale only the selected columns
+zscore_data <- scale(pca_df[, final_pca_columns])
+
+pca_result <- prcomp(zscore_data, center = TRUE, scale. = TRUE)
+# View principal components and explained variance
+summary(pca_result)
+# Shows how each variable contributes to each principal component
+pca_result$rotation
+# Scores of observations in PC space
+#head(pca_result$x)
+biplot(pca_result, scale = 0)
+
+
+zscore_df <- as.data.frame(zscore_data)
+numeric_cols <- sapply(zscore_df, is.numeric)
+sds <- apply(zscore_df[, numeric_cols], 2, sd)
+
+
+# See which are zero
+zero_var_cols <- names(sds[sds == 0])
+print(zero_var_cols)
+
+
+# After your PCA
+pca_result <- prcomp(zscore_data, center = TRUE, scale. = TRUE)
+
+# Inspect loadings (rotation)
+cat("Loadings (rotation):\n")
+print(head(pca_result$rotation, 10))
+
+# Inspect scores (x)
+cat("Scores (first few rows):\n")
+print(head(pca_result$x, 10))
+
+# Check a few more statistics
+cat("Standard deviations of PCs:\n")
+print(pca_result$sdev)
+
+cat("Variance explained per PC:\n")
+print((pca_result$sdev^2) / sum(pca_result$sdev^2))
+
+# If you try printing the full object, be mindful where the big numbers show up
+str(pca_result)
+
+summary(pca_result)
+```
+
+

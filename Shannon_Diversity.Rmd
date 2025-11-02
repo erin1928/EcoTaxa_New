@@ -1,0 +1,143 @@
+---
+title: "Shannon Diversity"
+author: "Erin Anderson"
+date: "2025-11-02"
+output: html_document
+---
+
+#Shannon Diversity Index Calculations
+```{r calculating SD for each sample, include=FALSE}
+sd_df <- object_counts_og_with_dates_no_detritus %>%
+ mutate(
+    Month = month(object_date),
+    Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"
+    )
+  )
+print(sd_df)
+
+# First, calculate proportions within each sample
+shannon_diversity <- sd_df %>%
+  group_by(object_date) %>%
+  summarise(
+    shannon_index = -sum(
+      (n_cor / sum(n_cor)) * log(n_cor / sum(n_cor))
+    )
+  )
+
+print(shannon_diversity)
+
+# Join with season info (assuming season is the same for each object_date)
+shannon_with_season <- shannon_diversity %>%
+  left_join(sd_df %>% select(object_date, Season, Month) %>% distinct(), by = "object_date") %>%
+  mutate(Year = year(object_date))
+
+# Plot Shannon diversity by season
+sd_box_plot <- ggplot(shannon_with_season, aes(x = Season, y = shannon_index, fill = Season)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5) +
+  facet_wrap(~ Year) +
+  labs(title = "Shannon Diversity Index by Season",
+       x = "Season",
+       y = "Shannon Diversity Index") +
+  theme_minimal() +
+  theme(legend.position = "right")
+print(sd_box_plot)
+ggsave("sd_box_plot.png", plot = sd_box_plot, dpi = 300)
+browseURL("sd_box_plot.png")
+
+# Plot Shannon diversity by month
+sd_box_plot_month <- ggplot(shannon_with_season, 
+                            aes(x = Month, y = shannon_index, fill = Season)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5) +
+  facet_wrap(~ Year) +
+  labs(title = "Shannon Diversity Index by Month",
+       x = "Month",
+       y = "Shannon Diversity Index") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_x_discrete(drop = TRUE)
+
+print(sd_box_plot_month)
+ggsave("sd_box_plot_month.png", plot = sd_box_plot_month, dpi = 300)
+browseURL("sd_box_plot_month.png")
+
+shannon_with_season$Season <- factor(shannon_with_season$Season, levels = c("Winter", "Spring", "Summer", "Fall"))
+anova_model <- aov(shannon_index ~ Season, data = shannon_with_season)
+summary(anova_model)
+TukeyHSD(anova_model)
+
+shannon_with_season$Month <- factor(shannon_with_season$Month, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+anova_model_2 <- aov(shannon_index ~ Month, data = shannon_with_season)
+summary(anova_model_2)
+TukeyHSD(anova_model_2) #Significance between Sept and May, p = 0.0380236
+
+anova_model_3 <- aov(shannon_index ~ Month * Year, data = shannon_with_season)
+summary(anova_model_3)
+TukeyHSD(anova_model_3)
+tukey_results <- TukeyHSD(anova_model_3)
+# Combine all TukeyHSD results into one data frame
+tukey_df <- do.call(rbind, lapply(tukey_results, as.data.frame))
+
+# Add a column showing which factor each result came from
+tukey_df$Term <- rep(names(tukey_results), times = sapply(tukey_results, nrow))
+
+# Filter for significant results (p adj ≤ 0.05)
+sig_tukey <- subset(tukey_df, `p adj` <= 0.05)
+
+sig_tukey[order(sig_tukey$`p adj`), ]
+```
+#Let's make a biodiversity GAM
+```{r making the GAM for 200 micron, include=FALSE}
+#install.packages("mgcv")
+#install.packages("nlme")
+library(mgcv)
+library(nlme)
+
+pca_gam <- pca_data_df %>%
+  mutate(
+    object_date = Date
+  )
+# Join with season info (assuming season is the same for each object_date)
+shannon_with_season_gam <- shannon_diversity %>%
+  left_join(pca_gam %>% select(object_date, avg_chl_a, Water_Temp_Avg, Salinity_Avg, Secchi.depth) %>% distinct(), by = "object_date") %>%
+  mutate(Year = year(object_date), 
+         Month = month(object_date), 
+         Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"))
+
+shannon_with_season_gam <- na.omit(shannon_with_season_gam)
+
+# Fit model
+gam_1 <- gam(shannon_index ~ s(avg_chl_a) + s(Water_Temp_Avg) + s(Salinity_Avg) +s(Secchi.depth) +s(Month), family = gaussian(), data = shannon_with_season_gam)
+
+# Summary
+summary(gam_1)
+
+gam_2 <- gam(shannon_index ~ s(Month) + s(Secchi.depth), family = gaussian(), data = shannon_with_season_gam) #Second GAM with only the significant response variables
+summary(gam_2)
+# Plot
+plot(gam_2, pages = 1, rug = TRUE)
+
+
+
+
+# Plot
+plot(gam_1, pages = 1, rug = TRUE)
+
+# Diagnostics
+gam.check(gam_1)
+
+# Predict
+pred <- predict(gam_1, newdata = shannon_with_season_gam)
+plot(pred)
+
+
+```
