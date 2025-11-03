@@ -36,15 +36,31 @@ shannon_with_season <- shannon_diversity %>%
   mutate(Year = year(object_date))
 
 # Plot Shannon diversity by season
-sd_box_plot <- ggplot(shannon_with_season, aes(x = Season, y = shannon_index, fill = Season)) +
+sd_box_plot <- ggplot(
+  shannon_with_season,
+  aes(x = factor(Season, levels = c("Winter", "Spring", "Summer", "Fall")),
+      y = shannon_index,
+      fill = Season)
+) +
   geom_boxplot(alpha = 0.7) +
   geom_jitter(width = 0.2, alpha = 0.5) +
   facet_wrap(~ Year) +
-  labs(title = "Shannon Diversity Index by Season",
-       x = "Season",
-       y = "Shannon Diversity Index") +
+  labs(
+    title = "Shannon Diversity Index by Season",
+    x = "Season",
+    y = "Shannon Diversity Index"
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Winter" = "#C77CFF",  
+      "Spring" = "#7CAE00",  
+      "Summer" = "#00BFC4",  
+      "Fall"   = "#F8766D"  
+    )
+  ) +
   theme_minimal() +
   theme(legend.position = "right")
+
 print(sd_box_plot)
 ggsave("sd_box_plot.png", plot = sd_box_plot, dpi = 300)
 browseURL("sd_box_plot.png")
@@ -58,6 +74,14 @@ sd_box_plot_month <- ggplot(shannon_with_season,
   labs(title = "Shannon Diversity Index by Month",
        x = "Month",
        y = "Shannon Diversity Index") +
+  scale_fill_manual(
+    values = c(
+      "Winter" = "#C77CFF",  
+      "Spring" = "#7CAE00",  
+      "Summer" = "#00BFC4",  
+      "Fall"   = "#F8766D"  
+    )
+  ) +
   theme_minimal() +
   theme(legend.position = "none") +
   scale_x_discrete(drop = TRUE)
@@ -97,7 +121,9 @@ sig_tukey[order(sig_tukey$`p adj`), ]
 #install.packages("nlme")
 library(mgcv)
 library(nlme)
-
+library(dplyr)
+library(lubridate)
+library(ggplot2)
 pca_gam <- pca_data_df %>%
   mutate(
     object_date = Date
@@ -127,17 +153,60 @@ summary(gam_2)
 plot(gam_2, pages = 1, rug = TRUE)
 
 
-
-
-# Plot
-plot(gam_1, pages = 1, rug = TRUE)
-
 # Diagnostics
 gam.check(gam_1)
 
 # Predict
-pred <- predict(gam_1, newdata = shannon_with_season_gam)
+pred <- predict(gam_2, newdata = shannon_with_season_gam)
 plot(pred)
 
+# Order by predictor variable
+ord <- order(shannon_with_season_gam$Secchi.depth)
+x <- shannon_with_season_gam$Secchi.depth[ord]
+y <- pred[ord]
 
+# Apply a smooth fit (loess)
+smooth_fit <- loess(y ~ x, span = 0.7)  # smaller span = more detail, larger = smoother
+y_smooth <- predict(smooth_fit)
+
+# Plot
+plot(x, y_smooth, type = "l", lwd = 2, col = "blue",
+     xlab = "Secchi.depth",
+     ylab = "Predicted Shannon Index",
+     main = "Smoothed GAM Prediction")
+
+# Open a PNG device
+png("smooth_gam.png", width = 1000, height = 1000, res = 300)
+
+# Order by predictor variable
+ord <- order(shannon_with_season_gam$Month)
+x <- shannon_with_season_gam$Month[ord]
+y <- pred[ord]
+
+# Apply a smooth fit (loess)
+smooth_fit <- loess(y ~ x, span = 0.7)  # smaller span = more detail, larger = smoother
+y_smooth <- predict(smooth_fit)
+
+# Plot
+smooth_gam <- plot(x, y_smooth, type = "l", lwd = 2, col = "red",
+     xlab = "Month",
+     ylab = "Predicted Shannon Index",
+     main = "Smoothed GAM Prediction")
+
+
+# Plot with boxplots and overlay GAM lines
+sd_box_plot_month +
+  geom_line(data = shannon_with_season_gam,
+            aes(x = as.numeric(Month), y = pred, group = Year),
+            color = "red", size = 1.2)
+
+
+# Open a PNG device
+png("sd_month_gam.png", width = 1000, height = 1000, res = 300)
+
+sd_month_gam <- sd_box_plot_month +
+  geom_smooth(data = shannon_with_season_gam,
+              aes(x = as.numeric(Month), y = shannon_index, group = Year),
+              method = "loess", se = FALSE, span = 0.7,
+              color = "red", size = 1.2)
 ```
