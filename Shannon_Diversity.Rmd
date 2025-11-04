@@ -147,7 +147,7 @@ gam_1 <- gam(shannon_index ~ s(avg_chl_a) + s(Water_Temp_Avg) + s(Salinity_Avg) 
 # Summary
 summary(gam_1)
 
-gam_2 <- gam(shannon_index ~ s(Month) + s(Secchi.depth), family = gaussian(), data = shannon_with_season_gam) #Second GAM with only the significant response variables
+gam_2 <- gam(shannon_index ~ s(Water_Temp_Avg) + s(Secchi.depth), family = gaussian(), data = shannon_with_season_gam) #Second GAM with only the significant response variables
 summary(gam_2)
 # Plot
 plot(gam_2, pages = 1, rug = TRUE)
@@ -179,8 +179,8 @@ plot(x, y_smooth, type = "l", lwd = 2, col = "blue",
 png("smooth_gam.png", width = 1000, height = 1000, res = 300)
 
 # Order by predictor variable
-ord <- order(shannon_with_season_gam$Month)
-x <- shannon_with_season_gam$Month[ord]
+ord <- order(shannon_with_season_gam$Water_Temp_Avg)
+x <- shannon_with_season_gam$Water_Temp_Avg[ord]
 y <- pred[ord]
 
 # Apply a smooth fit (loess)
@@ -189,7 +189,7 @@ y_smooth <- predict(smooth_fit)
 
 # Plot
 smooth_gam <- plot(x, y_smooth, type = "l", lwd = 2, col = "red",
-     xlab = "Month",
+     xlab = "Water_Temp_Avg",
      ylab = "Predicted Shannon Index",
      main = "Smoothed GAM Prediction")
 
@@ -201,12 +201,18 @@ sd_box_plot_month +
             color = "red", size = 1.2)
 
 
-# Open a PNG device
-png("sd_month_gam.png", width = 1000, height = 1000, res = 300)
-
-sd_month_gam <- sd_box_plot_month +
-  geom_smooth(data = shannon_with_season_gam,
-              aes(x = as.numeric(Month), y = shannon_index, group = Year),
-              method = "loess", se = FALSE, span = 0.7,
-              color = "red", size = 1.2)
+ggsave(
+  filename = "shannon_gam_overlay.png",  # file name + extension
+  plot = sd_box_plot_month +
+    geom_smooth(
+      data = shannon_with_season_gam,
+      aes(x = as.numeric(Water_Temp_Avg), y = shannon_index, group = Year),
+      method = "loess", se = FALSE, span = 0.7,
+      color = "red", size = 1.2
+    ) +
+    theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt")),
+  width = 10,    # width in inches
+  height = 6,   # height in inches
+  dpi = 300     # resolution
+)
 ```
