@@ -3,11 +3,7 @@ title: "EcoTaxa_New"
 output: html_document
 date: "2025-09-08"
 ---
-#This is the updated code that takes into account the pre-calculated individual biovolume from the EcoTaxa/EcoPart manuals. I think this is the more correct way of computing the biovolume, counts, and abundances due to the lack of multiplying all values by the splitting fraction a second time. Biovolume and count calculations have been updated to account for the acq_sub_part, converting the volume to m^3 BUT I HAVE NOT YET INCLUDED THE NEW CORRECTION FACTOR HOWEVER THIS SHOULD BE AN EASY ADDITION!  
-
-#DO A SHANNON DIVERSITY, SEP SPRING AND SUMMER BY YEAR AND RUN THE ANOVA AGAIN RUN ANOVA ON SD 
-#Check Johnson paper and see how she presented diversity data
-#Box plot of season of diversity. diversity for each sample and average sample diversity indices by season.
+#This markdown contains the code for loading the tsv files as well as making the biovolume line graphs. Biovolume is calculated using spherical volume from the provided ESD from Zoo Process and follows calulations provided by Hydroptic. Splitting fractions are input into an if/then pipeline to account for the multiple scans taken of each sample. All samples are strained through a seive with a mesh size matching the original net mesh to filter out zooplankton of inappropriate size fractions,
 
 #Don't forget to load all of your packages first or it will not work lol
 ```{r load packages here, include=FALSE}
