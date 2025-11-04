@@ -175,14 +175,11 @@ print(n_unique_dates)
 
 # Print the unique dates
 print(unique_dates)
-
+rm(unique_dates) #girl please clear you're environment 
 count_unique <- length(unique(combined_df$object_id))
 print(count_unique)
-
-#count_unique_2 <- length(unique(combined_df_unique$object_id))
-#print(count_unique_2)
-#count_date <- length(unique(combined_df_unique$object_date))
-#print(count_date)
+rm(count_unique) #CLEAR IT 
+#rm(count_unique_2) #CLEAR IT CLEAR IT CLEAR IT
 ```
 
 #Defining variables, all of this code came from the EcoTaxa and EcoPart manuals
