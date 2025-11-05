@@ -184,7 +184,7 @@ object_counts_og_with_dates_no_detritus <- combined_df %>%
       object_annotation_category %in% c("Centropages", "Centropages hamatus", "Centropages typicus") ~ "Centropages spp.",
       object_annotation_category %in% c("unidentified-nauplii", "nauplii<Copepoda", "nauplii-molt") ~ "Copepod nauplii",
       object_annotation_category %in% c("Pseudocalanus", "Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
-      object_annotation_category %in% c("Paraocalanus", "Paracalanus sp.", "Paracalanus parvus", "	paracalanus+sp+eggs") ~ "Paracalanus spp.",
+      object_annotation_category %in% c("Paraocalanus", "Paracalanus sp.", "Paracalanus parvus", "paracalanus+sp+eggs") ~ "Paracalanus spp.",
       object_annotation_category %in% c("Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs") ~ "Eurytemora spp.",
       object_annotation_category %in% c("Evadne", "evadne-nordmanni-multiple") ~ "Evadne spp.",
       object_annotation_category %in% c("Copepoda<Maxillopoda", "copepod shape", "badfocus<Copepoda", "multiple<Copepoda", "Microcalanus", "Microcalanus sp.", "Parvocalanus", "Temora   longicornis", "Tortanus sp.", "Calanoida", "Calanus sp.", "copepod sp.") ~ "Copepoda spp.",
@@ -791,5 +791,4 @@ relative_abundance_df_no_detritus <- calculate_relative_abundance_no_detritus(
   object_counts_og_with_dates_no_detritus,
 )
 print(relative_abundance_df_no_detritus)
-
 ```
