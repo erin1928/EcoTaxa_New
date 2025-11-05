@@ -14,8 +14,9 @@ library(ggplot2)
 
 # Instead of aggregating, keep the grouped data and calculate biovol_conc per row:
 biovolume_nbss <- Biovolume_df %>%
-  filter(!grepl("^not-living>", object_annotation_hierarchy, #)) %>%
-                object_annotation_category != "badfocus<other")) %>%
+  filter(!object_annotation_category %in% c("badfocus<other"), 
+    !object_annotation_category %in% c("Macroalgae"),
+    !grepl("^not-living>", object_annotation_hierarchy)) %>%
   group_by(Date, Fraction, Volume, Tow, Station, acq_min_mesh, acq_max_mesh) %>%
   mutate(
     biovol_conc = if_else(
