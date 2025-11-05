@@ -20,6 +20,9 @@ library(mgcv) #GAM
 library(nlme) #GAM
 library(tidyr) #RA
 library(data.table) #NBSS only
+library(cli) #NBSS
+library(devtools) #NBSS
+library(ecotaxar) #NBSS
 ```
 
 #Importing and combining all EcoTaxa zip and TSV files between all necessary projects:
