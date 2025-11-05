@@ -8,9 +8,15 @@ output: html_document
 #NBSS
 #This step is using the same biovolume calculations as before except I am not aggregating by date and instead am leaving obj. biovolumes 
 ```{r making the biovolume df for the NBSS, include=FALSE}
+library(dplyr)
+library(data.table)
+library(ggplot2)
+
 # Instead of aggregating, keep the grouped data and calculate biovol_conc per row:
 biovolume_nbss <- Biovolume_df %>%
-  group_by(Date, Fraction, Volume, Tow, Station) %>%
+  filter(!grepl("^not-living>", object_annotation_hierarchy, #)) %>%
+                object_annotation_category != "badfocus<other")) %>%
+  group_by(Date, Fraction, Volume, Tow, Station, acq_min_mesh, acq_max_mesh) %>%
   mutate(
     biovol_conc = if_else(
       Fraction == 1,
@@ -20,91 +26,23 @@ biovolume_nbss <- Biovolume_df %>%
   ) %>%
   ungroup()
 
-# Remove exact duplicate rows first
-biovolume_nbss <- biovolume_nbss %>% distinct()
-
-# Then join with unique combined_df to add object_esd
-combined_df_unique <- combined_df %>%
-  distinct(object_id, .keep_all = TRUE)
-
-biovolume_nbss <- biovolume_nbss %>%
-  left_join(combined_df_unique %>% select(object_id, object_esd),
-            by = "object_id")
-
 setDT(biovolume_nbss)
 biovolume_nbss[, sample_id := as.character(Date)]
 biovolume_nbss <- biovolume_nbss %>%
   mutate(Spherical_Volume_mm3 = Spherical_volume * 1000)
-biovolume_nbss_filtered <- biovolume_nbss %>%
-  filter(Tow == 200)
+#biovolume_nbss_filtered <- biovolume_nbss %>%
+  #filter(Tow == 200)
 head(biovolume_nbss)
+
+# Install the package if you haven't already
+#install.packages("writexl")
+
+# Load the package
+#library(writexl)
+
+# Export the data frame to Excel
+#write_xlsx(as.data.frame(biovolume_nbss), "biovolume_nbss.xlsx")
 ```
-```{r making the bins for the NBSS, include=FALSE}
-library(dplyr)
-
-# Step 1: Define size bins (log scale often preferred)
-# Example: bins from min to max ESD with fixed log10-width of 0.2
-bin_breaks <- 10^(seq(log10(min(biovolume_nbss$object_esd, na.rm=TRUE)),
-                      log10(max(biovolume_nbss$object_esd, na.rm=TRUE)),
-                      by = 0.2))
-
-# Step 2: Assign each object to a bin
-biovolume_nbss <- biovolume_nbss %>%
-  mutate(
-    size_bin = cut(object_esd,
-                   breaks = bin_breaks,
-                   include.lowest = TRUE,
-                   right = FALSE)
-  )
-
-# Step 3: Calculate total biomass concentration per bin (sum of biovol_conc)
-nbss <- biovolume_nbss %>%
-  group_by(Date, size_bin) %>%
-  summarise(
-    total_biovol_conc = sum(biovol_conc, na.rm = TRUE),
-    bin_min = min(object_esd, na.rm = TRUE),
-    bin_max = max(object_esd, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-# Step 4: Calculate bin width for normalization
-nbss <- nbss %>%
-  mutate(
-    bin_width = bin_max - bin_min,
-    normalized_biovol = total_biovol_conc / bin_width
-  )
-
-# Step 5: Optional - log-transform for plotting (avoid zeros)
-#nbss <- nbss %>%
- # filter(normalized_biovol > 0) %>%
-#  mutate(
-   # log_bin_mid = log10((bin_min + bin_max)/2),
-  #  log_biovol = log10(normalized_biovol)
- # )
-
-# View the NBSS dataframe
-print(nbss)
-```
-```{r okay now we print it, include=FALSE}
-library(ggplot2)
-
-nbss_plot <- ggplot(nbss, aes(x = log_bin_mid, y = log_biovol, color = as.factor(Date))) +
-  geom_point(size = 3) +
-  geom_line() +
-  labs(
-    x = "Log10 Object Size (µm ESD)",
-    y = "Log10 Normalized Biovolume Concentration",
-    color = "Date",
-    title = "Normalized Biomass Size Spectra (NBSS)"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "bottom"
-  )
-print(nbss_plot)
-```
-#Take a look at GAMs and NBSS
-#Make 1 GAM for all environmental factors across all dates modeling biodiversity over time. Start with SD (richness and evenness) Johnson et al 2011 for biodiversity indices. Add season column to pca data
 ```{r this is code copied from https://rdrr.io/github/clatrellu/Ecotaxa_R/src/R/nbss.R, include=FALSE}
 #install.packages("data.table")
 library(data.table)
@@ -112,8 +50,7 @@ library(data.table)
 #' NBSS : Normalized Biovolume Size Spectra calculation for a given sample, 
 #' calculate several NBSS spectra to compare samples
 #'
-#' @param objects A data table containing objects in rows (not necessarily 
-#' from the same sample) and details about the objects in the columns. 
+#' @param objects A data table containing objects in rows-not necessarily from the same sample- and details about the objects in the columns. 
 #' @param samples A data table containing samples in rows and details about 
 #' the latter in columns.
 #' @param sample a string containing the name of the sample for which to calculate the NBSS
@@ -124,10 +61,13 @@ library(data.table)
 #' for all objects in a sample, the result is the same, except that size spectra 
 #' are given in mm^3 instead of mm^3/m^3
 
+
+#biovolume_nbss IS A DF WITH COLUMNS: Date, Fraction (Splitting), Volume (m^3), Spherical Volume (m^3), Tow, Station, object_id (individual vignette with detritus filtered out), biovol_conc (concentrated biovolume from ESD and filtered volume in individuals/m^3), object_esd in microns, sample_id (shown as a date), Spherical_Volume_mm3 (converted from m^3), and acq_min and max mesh (microns)
+
 NBSS <- function(biovolume_nbss, N = TRUE) {
   
   #if (nrow(biovolume_nbss) < 1000) {
-   # warning("Warning: this sample contains less than 1000 objects; the NBSS plot might not be #representative.")
+    #warning("Warning: this sample contains less than 1000 objects; the NBSS plot might not be #representative.")
   #}
   
   # Calculate lower bound volume (Bvmin) from minimum ESD (µm to mm^3)
@@ -170,7 +110,7 @@ NBSS <- function(biovolume_nbss, N = TRUE) {
     x <- c(x, b)
   }
   
-  nbss.plot <- data.table(Spectra = x, NBSS = y)
+  nbss.plot <- data.table(Spectra = x, NBSS = y) #Creating "Spectra"
   
   # Remove intervals with zero NBSS and log-transform NBSS
   nbss.plot <- nbss.plot[NBSS > 0]
@@ -196,70 +136,24 @@ NBSS <- function(biovolume_nbss, N = TRUE) {
 #' p 
 #' @export NBSS.plot
 
-NBSS.plot <- function(biovolume_nbss, ESD = TRUE) {
+NBSS.plot <- function(biovolume_nbss,ESD=TRUE){
   
-  # Ensure data is a data.table
-  biovolume_nbss <- as.data.table(biovolume_nbss)
+  sample_name <- biovolume_nbss[,unique(sample_id)] #I THINK THIS SEPARATES BY SAMPLE
+  data <- NBSS(biovolume_nbss,N=TRUE) #CALLING PREVIOUS FUNCTION
   
-  # Get unique samples (adjust column name if different)
-  samples <- unique(biovolume_nbss$sample_id)
-    print(samples)
-  # Prepare list to hold NBSS results per sample
-  nbss_list <- vector("list", length(samples))
+  #convert back to ESD :
   
-  for (i in seq_along(samples)) {
-    samp <- samples[i]
-    
-    # Subset data for current sample
-    subset_data <- biovolume_nbss[sample_id == samp]
-    
-    # Calculate NBSS for the sample
-    nbss_res <- NBSS(subset_data, N = TRUE)
-    
-    # Convert Spectra units if ESD requested
-    if (ESD) {
-      # Convert Spectra from m^3 to mm^3
-      nbss_res[, Spectra := Spectra * 1e9]
-      # Convert volume (mm^3) to ESD (µm)
-      nbss_res[, Spectra := 2 * 1e3 * (Spectra * 3 / (4 * pi))^(1/3)]
-    }
-    
-    # Add sample ID for plotting
-    nbss_res[, sample_id := samp]
-    
-    # Store result
-    nbss_list[[i]] <- nbss_res
-  }
-  # Combine all sample results into one data.table
-  all_samples_nbss <- rbindlist(nbss_list)
+  data[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)] #I don't follow what's happening here
   
-  # Calculate axis limits based on all samples ESD range (if ESD=TRUE)
-  if (ESD) {
-    min_esd <- min(biovolume_nbss$object_esd, na.rm = TRUE)
-    max_esd <- max(biovolume_nbss$object_esd, na.rm = TRUE)
-    x_limits <- c(min_esd, max_esd)
-    x_label <- "Equivalent Spherical Diameter [µm]"
-  } else {
-    x_limits <- NULL
-    x_label <- "Volume [mm^3]"
-  }
+  min_mesh <- unique(biovolume_nbss$acq_min_mesh) #QUESTION: WE HAVE THIS IN THE ORIGINAL DATA SET AND I CAN BRING IT INTO THE NEW ONE, BUT SINEC WE ARE DOING SEPARATE NBSS FOR 200 AND 700 COULD THIS BE SUBSTITUTED FOR MIN AND MAX ESD?
+  max_mesh <- unique(biovolume_nbss$acq_max_mesh)
   
-  # Plot all samples with color grouping
-  p <- ggplot(all_samples_nbss, aes(x = Spectra, y = NBSS, color = sample_id)) +
-    geom_point() +
-    scale_x_log10(limits = x_limits) +
-    labs(
-      x = x_label,
-      y = "NBSS [mm^3/mm^3/m^3]",
-      color = "Sample ID",
-      title = "NBSS Size Spectra for All Samples"
-    ) +
-    theme_minimal()
+  p <- ggplot(data,aes(x=Spectra,y=NBSS)) + 
+    geom_point()  + scale_x_log10(limits=c(min_mesh,max_mesh))+
+    labs(x="Equivalent Spherical Diameter [µm]",y="NBSS [mm^3/mm^3/m^3]",title = paste("NBSS:",sample_name)) #is this making one NBSS per sample? How do I combine multiple together?
   
   return(p)
 }
-#' @export BSS.plot
-
 p <- NBSS.plot(biovolume_nbss, ESD = TRUE)
 print(p)
 ```  
@@ -309,3 +203,4 @@ NBSS.plot <- function(biovolume_nbss,ESD=TRUE){
 }
 
 ```
+
