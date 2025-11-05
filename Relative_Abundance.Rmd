@@ -628,11 +628,11 @@ print(top10_relative_abundance_season_df_no_detritus)
 ```{r relative abundance plots per season with no detritus and other category, include=FALSE}
 library(ggplot2)
 species_colors <- c(
-  "Temora longicornis"            = "#b89cff",
+  "Temora longicornis"  = "#b89cff",
   "Copepoda spp."       = "#d5b8ff",
   "Other zooplankton"   = "#9bafff",
   "Copepod nauplii"     = "#3a55b4",
-  "Oithona spp."         = "#537dc6",
+  "Oithona spp."        = "#537dc6",
   "Paracalanus spp."    = "#6caddf",
   "Podonidae"           = "#7fcff1",
   "Psuedocalanus spp."  = "#8cd9ff",
@@ -643,7 +643,7 @@ species_colors <- c(
   "Acartia spp."        = "#ccff8c"
 )
 seasonal_abundance_plot <- ggplot(top10_relative_abundance_season_df_no_detritus,
-                                 aes(x = season, y = relative_abundance, fill = object_annotation_category)) +
+                                 aes(x = factor(season, levels = c("Winter", "Spring", "Summer", "Fall")), y = relative_abundance, fill = object_annotation_category)) +
   facet_wrap(~ year) +
   geom_bar(stat = "identity") +
   labs(
@@ -743,4 +743,53 @@ seasonal_abundance_plot_detritus <- ggplot(top10_relative_abundance_season_df,
 print(seasonal_abundance_plot_detritus)
 ggsave("seasonal_abundance_plot_detritus.png", plot = seasonal_abundance_plot_detritus, dpi = 300)
 browseURL("seasonal_abundance_plot_detritus.png")
+```
+
+```{r total number of species and their counts collectively throughout entire time series no detritus}
+
+object_counts_og_with_dates_no_detritus <- object_counts_og_with_dates_no_detritus %>%
+  mutate(year = year(object_date))
+calculate_relative_abundance_no_detritus <- function(df, exclude_categories = NULL) {
+  df %>%
+    # Filter out the excluded categories if provided
+    { if (!is.null(exclude_categories)) filter(., !object_annotation_category %in% exclude_categories) else . } %>%
+
+    # Extract season based on month
+    mutate( 
+      season = case_when(
+      month(object_date) %in% c(1, 2, 3) ~ "Winter",
+      month(object_date) %in% 4:6 ~ "Spring",
+      month(object_date) %in% 7:9 ~ "Summer",
+      month(object_date) %in% 10:12 ~ "Fall",
+      TRUE ~ NA_character_
+    )) %>%
+    
+    # Group by month, species, and sample_net_mesh (if you want to keep mesh grouping)
+    group_by(season, object_annotation_category, sample_net_mesh, year) %>%
+    
+    # Sum n_cor counts per month and species
+    summarise(total_n_cor = sum(n_cor, na.rm = TRUE), .groups = "drop") %>%
+    
+    # Calculate total n_cor per month for relative abundance
+    group_by(season, year) %>%
+    mutate(
+      relative_abundance = total_n_cor / sum(total_n_cor, na.rm = TRUE)
+    ) %>%
+    
+    # For each month, keep only top 10 species by relative abundance
+    filter(object_annotation_category != "badfocus<other", 
+           object_annotation_category != "Macroalgae", 
+           object_annotation_category != "badfocus<other") %>%
+    arrange(season, desc(relative_abundance)) %>%
+    group_by(season, year) %>%
+    slice_head(n = 2) %>%
+    ungroup()
+}
+
+
+relative_abundance_df_no_detritus <- calculate_relative_abundance_no_detritus(
+  object_counts_og_with_dates_no_detritus,
+)
+print(relative_abundance_df_no_detritus)
+
 ```
