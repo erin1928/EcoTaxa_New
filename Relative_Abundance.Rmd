@@ -5,7 +5,7 @@ date: "2025-11-02"
 output: html_document
 ---
 #Put all count calculations and figures in this section:
-```{r getting count data for time series CORRECT (CHECK W TRICIA), include=FALSE}
+```{r getting count data for time series excluding detritus), include=FALSE}
 library(ggplot2)
 library(dplyr)
 library(tidyr)
@@ -158,12 +158,13 @@ print(object_counts_og_with_dates)
 #Getting count data but excluding detritus categories so the ensuing graphs do not at to 100%
 ```{r getting count data for time series and keeping things in their date, include=FALSE}
 # Final summarization with object_date included
-object_counts_og_with_dates_no_detritus <- combined_df_unique %>%
+object_counts_og_with_dates_no_detritus <- combined_df %>%
   filter(
     sample_net_mesh %in% c("200"),
     sample_stationid %in% c("ram", "na", "NaN", "ram_island"),
-    !grepl("^not-living>", object_annotation_hierarchy)  # Exclude "not-living>" and subcategories
-  ) %>%
+    !object_annotation_category %in% c("badfocus<other"), 
+    !object_annotation_category %in% c("Macroalgae"),
+    !grepl("^not-living>", object_annotation_hierarchy)) %>%  # Exclude "not-living>" and subcategories
   group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
   summarise(
    n = n(),
@@ -204,6 +205,8 @@ object_counts_og_with_dates_no_detritus <- combined_df_unique %>%
     .groups = "drop"
   )
 print(object_counts_og_with_dates_no_detritus)
+
+unique(object_counts_og_with_dates_no_detritus$object_annotation_category)
 ```
 ```{r double checking the splitting fractions and dates to ensure everything looks correct, include=FALSE}
 # View result
@@ -536,7 +539,8 @@ calculate_top10_relative_abundance_no_detritus <- function(df, exclude_categorie
     
     # For each month, keep only top 10 species by relative abundance
     filter(object_annotation_category != "badfocus<other", 
-           object_annotation_category != "Macroalgae") %>%
+           object_annotation_category != "Macroalgae", 
+           object_annotation_category != "badfocus<other") %>%
     arrange(month, desc(relative_abundance)) %>%
     group_by(month) %>%
     slice_head(n = 10) %>%
