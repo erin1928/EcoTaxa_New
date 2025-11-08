@@ -194,7 +194,7 @@ smooth_gam <- plot(x, y_smooth, type = "l", lwd = 2, col = "red",
      main = "Smoothed GAM Prediction")
 
 
-# Plot with boxplots and overlay GAM lines
+# Plot with boxplots and overlay LOESS lines
 sd_box_plot_month +
   geom_line(data = shannon_with_season_gam,
             aes(x = as.numeric(Month), y = pred, group = Year),
@@ -202,12 +202,12 @@ sd_box_plot_month +
 
 
 ggsave(
-  filename = "shannon_gam_overlay.png",  # file name + extension
+  filename = "shannon_loess_overlay.png",  # file name + extension
   plot = sd_box_plot_month +
     geom_smooth(
       data = shannon_with_season_gam,
       aes(x = as.numeric(Water_Temp_Avg), y = shannon_index, group = Year),
-      method = "loess", se = FALSE, span = 0.7,
+      method = "gam", se = FALSE, span = 0.7,
       color = "red", size = 1.2
     ) +
     theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt")),
@@ -215,4 +215,72 @@ ggsave(
   height = 6,   # height in inches
   dpi = 300     # resolution
 )
+
+ggsave(
+  filename = "shannon_loess_overlay_secchi.png",  # file name + extension
+  plot = sd_box_plot_month +
+    geom_smooth(
+      data = shannon_with_season_gam,
+      aes(x = as.numeric(Secchi.depth), y = shannon_index, group = Year),
+     method = "gam", se = FALSE, span = 0.7,
+      color = "red", linewidth = 1.2
+    ) +
+    theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt")),
+  width = 10,    # width in inches
+  height = 6,   # height in inches
+  dpi = 300     # resolution
+)
+```
+
+```{r remaking data tables for corrected GAMs}
+library(tidyr)
+# Create new data for predictions
+newdat <- shannon_with_season_gam %>%
+  summarize(Water_Temp_Avg = mean(Water_Temp_Avg, na.rm = TRUE)) %>%
+  crossing(
+    Secchi.depth = seq(
+      min(shannon_with_season_gam$Secchi.depth, na.rm = TRUE),
+      max(shannon_with_season_gam$Secchi.depth, na.rm = TRUE),
+      length.out = 100
+    )
+  )
+
+# Predict from your GAM (fitted model)
+newdat$pred <- predict(gam_2, newdata = newdat, type = "response")
+
+plot <- sd_box_plot_month +
+  geom_line(
+    data = newdat,
+    aes(x = Secchi.depth, y = pred),
+    inherit.aes = FALSE,
+    color = "red",
+    linewidth = 1.2
+  ) +
+  theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt"))
+print(plot)
+
+# Create a smooth range of Water_Temp_Avg values
+newdat_temp <- shannon_with_season_gam %>%
+  summarize(Secchi.depth = mean(Secchi.depth, na.rm = TRUE)) %>%
+  crossing(
+    Water_Temp_Avg = seq(
+      min(shannon_with_season_gam$Water_Temp_Avg, na.rm = TRUE),
+      max(shannon_with_season_gam$Water_Temp_Avg, na.rm = TRUE),
+      length.out = 100
+    )
+  )
+
+# Predict from your existing GAM (no refitting!)
+newdat_temp$pred <- predict(gam_2, newdata = newdat_temp, type = "response")
+
+plot_temp <- sd_box_plot_month +
+  geom_line(
+    data = newdat_temp,
+    aes(x = Water_Temp_Avg, y = pred),
+    color = "blue",
+    linewidth = 1.2,
+    inherit.aes = FALSE
+  ) +
+  theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt"))
+print(plot_temp)
 ```
