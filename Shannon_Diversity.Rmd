@@ -148,7 +148,7 @@ gam_1 <- gam(shannon_index ~ s(avg_chl_a) + s(Water_Temp_Avg) + s(Salinity_Avg) 
 summary(gam_1)
 
 gam_2 <- gam(shannon_index ~ s(Water_Temp_Avg) + s(Secchi.depth), family = gaussian(), data = shannon_with_season_gam) #Second GAM with only the significant response variables
-summary(gam_2)
+summary(gam_2) #Std. error = 0,03436, R^2 (adj) = 0.137, Dev. explained = 17.3%
 # Plot
 plot(gam_2, pages = 1, rug = TRUE)
 
@@ -166,7 +166,7 @@ ggsave(
       method = "gam", se = FALSE, span = 0.7,
       color = "red", size = 1.2
     ) +
-    theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt")),
+    theme_minimal(), #(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt")),
   width = 10,    # width in inches
   height = 6,   # height in inches
   dpi = 300     # resolution
@@ -181,7 +181,7 @@ ggsave(
      method = "gam", se = FALSE, span = 0.7,
       color = "red", linewidth = 1.2
     ) +
-    theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt")),
+    theme_minimal(), #(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt")),
   width = 10,    # width in inches
   height = 6,   # height in inches
   dpi = 300     # resolution
@@ -214,7 +214,7 @@ plot <- sd_box_plot_month +
     color = "red",
     linewidth = 1.2
   ) +
-  theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt"))
+  theme_minimal(), #(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt"))
 )
 print(plot)
 
@@ -242,7 +242,7 @@ plot_temp <- sd_box_plot_month +
     linewidth = 1.2,
     inherit.aes = FALSE
   ) +
-  theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt"))
+  theme_minimal(), #(plot.margin = margin(5.5, 5.5, 5.5, 5.5, unit = "pt"))
 )
 print(plot_temp)
 ```

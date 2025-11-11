@@ -113,7 +113,7 @@ vectors_df <- as.data.frame(vectors * arrow_scale)
 vectors_df$env_var <- rownames(vectors_df)
 
 # Add arrows and labels to the plot
-pca_plot_3 +
+pca_plot_4 <- pca_4 +
   geom_segment(data = vectors_df,
                aes(x = 0, y = 0, xend = PC1, yend = PC2),
                arrow = arrow(length = unit(0.3, "cm")),
@@ -122,8 +122,9 @@ pca_plot_3 +
             aes(x = PC1 * 1.1, y = PC2 * 1.1, label = env_var),
             color = "blue",
             size = 4)
-print(pca_plot_3)
-
+print(pca_plot_4)
+ggsave("pca_plot_4.png", plot = pca_plot_4, dpi = 300)
+browseURL("pca_plot_4.png")
 
 # Convert PCA scores to a data frame
 pca_scores <- as.data.frame(pca_result$x)
@@ -149,6 +150,32 @@ pca_4 <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = Season, shape = Season
 print(pca_4)
 ggsave("pca_plot_4.png", plot = pca_4, dpi = 300)
 browseURL("pca_plot_4.png")
+
+pca_plot_4 <- pca_4 +
+  # Add arrows for environmental vectors
+  geom_segment(
+    data = vectors_df,
+    inherit.aes = FALSE,  # prevent using Season etc.
+    aes(x = 0, y = 0, xend = PC1, yend = PC2),
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = "blue", size = 0.75
+  ) +
+  
+  # Add text labels for each vector
+  geom_text(
+    data = vectors_df,
+    inherit.aes = FALSE,
+    aes(x = PC1 * 1.1, y = PC2 * 1.1, label = env_var),
+    color = "blue", size = 3
+  )
+
+# Display it
+print(pca_plot_4)
+
+# Save it
+ggsave("pca_plot_4_arrows.png", plot = pca_plot_4, dpi = 300)
+browseURL("pca_plot_4_arrows.png")
+
 ```
 #Standardize data
 #Z-scores

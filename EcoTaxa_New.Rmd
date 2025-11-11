@@ -239,7 +239,8 @@ Biovolume_df <- data.frame(
   object_annotation_category = combined_df$object_annotation_category,
   acq_min_mesh = combined_df$acq_min_mesh, 
   acq_max_mesh = combined_df$acq_max_mesh,
-  Year = year(combined_df$object_date)
+  Year = year(combined_df$object_date), 
+  object_esd = combined_df$object_esd
  )
 
 print(Biovolume_df)
@@ -312,7 +313,7 @@ biovolume_plot_200 <- ggplot(data = biovolume_by_date %>% filter(Tow %in% as.num
   labs(
     title = NULL,
     x = "Date",
-    y = expression("Biovolume (individuals" ~ m^{-3} * ")")
+    y = expression("Biovolume (mm"^{-3} ~ m^{-3} * ")")
   ) +
   theme(panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.50))
 # Plot for Tow = 700

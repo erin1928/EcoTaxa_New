@@ -64,7 +64,7 @@ library(data.table)
 #' are given in mm^3 instead of mm^3/m^3
 
 
-#biovolume_nbss IS A DF WITH COLUMNS: Date, Fraction (Splitting), Volume (m^3), Spherical Volume (m^3), Tow, Station, object_id (individual vignette with detritus filtered out), biovol_conc (concentrated biovolume from ESD and filtered volume in individuals/m^3), object_esd in microns, sample_id (shown as a date), Spherical_Volume_mm3 (converted from m^3), and acq_min and max mesh (microns)
+#biovolume_nbss IS A DF WITH COLUMNS: Date, Fraction (Splitting), Volume (m^3), Spherical Volume (m^3), Tow, Station, object_id (individual vignette with detritus filtered out), biovol_conc (concentrated biovolume from ESD and filtered volume in mm^3/m^3), object_esd in microns, sample_id (shown as a date), Spherical_Volume_mm3 (converted from m^3), and acq_min and max mesh (microns)
 
 NBSS <- function(biovolume_nbss, N = TRUE) {
   
@@ -155,7 +155,7 @@ NBSS.plot <- function(biovolume_nbss,ESD=TRUE){
   scale_x_log10(limits = c(min_mesh, max_mesh)) +
   labs(
     x = "Equivalent Spherical Diameter [µm]",
-    y = "NBSS [mm³/mm³/m³]",
+    y = "NBSS [mm³/m³]", #"NBSS [mm³/mm³/m³]" original but i think that is wrong
     title = "NBSS across samples"
   )
   
@@ -169,6 +169,14 @@ print(all_samples)
 meso_nbss <- biovolume_nbss %>% filter(Tow == "200")
 
 just_meso <- NBSS.plot(meso_nbss, ESD = TRUE)
+print(just_meso)
+
+```
+
+```{r NBSS by tow and by season}
+macro_nbss <- biovolume_nbss %>% filter(Tow == "700")
+
+just_macro <- NBSS.plot(macro_nbss, ESD = TRUE)
 print(just_meso)
 
 ```
