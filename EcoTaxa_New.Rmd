@@ -195,7 +195,7 @@ Area_mm2 <- (combined_df$object_area)*(combined_df$process_particle_pixel_size_m
 Area_excluded_mm2 <- (combined_df$object_area_exc)*(combined_df$process_particle_pixel_size_mm)^2
 Major_mm <- (combined_df$combined_df$object_major)*(combined_df$process_particle_pixel_size_mm)
 Minor_mm <- (combined_df$object_minor)*(combined_df$process_particle_pixel_size_mm)
-Volume <- (combined_df$sample_tot_vol)/(100^3) #converting to m^3 since the Google Sheet computes it in cm^3
+#Volume <- (combined_df$sample_tot_vol)/(100^3) #converting to m^3 since the Google Sheet computes it in cm^3
 ```
 #Put all biovolume calculations in this section:
 #Test case for a few random dates and run biovolume code to see if it is using the correct splitting factor
