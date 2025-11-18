@@ -359,6 +359,7 @@ print(relative_abundance_detritus_df)
 
 ```
 #Relative abundance graphs with detritus and other previously excluded categories
+#I don't think I care about this one
 ```{r making a stacked bar graph for 200 tow across all dates including detritus, include=FALSE}
 species_colors <- c(
   "Detritus"            = "#b89cff",
@@ -378,7 +379,7 @@ species_colors <- c(
 # Reorder factor levels to match color palette
 relative_abundance_detritus_df$object_annotation_category <- factor(
   relative_abundance_detritus_df$object_annotation_category,
-  levels = names(custom_colors)
+  levels = names(species_colors)
 )
 
 # Plot
@@ -400,7 +401,7 @@ relative_abundance_plot_all <- ggplot(relative_abundance_detritus_df, aes(
     legend.position = "right"
   ) +
   scale_x_discrete(breaks = "200", labels = "200") +
-  scale_fill_manual(values = custom_colors)
+  scale_fill_manual(values = species_colors)
 
 # Print the plot
 print(relative_abundance_plot_all)
