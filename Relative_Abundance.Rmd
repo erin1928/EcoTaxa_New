@@ -468,6 +468,7 @@ relative_abundance_plot <- ggplot(relative_abundance_df, aes(
 print(relative_abundance_plot)
 
 ```
+
 ```{r function to get relative abundance for each month in the timeseries, include=FALSE}
 calculate_top10_relative_abundance <- function(df, exclude_categories = NULL) {
   df %>%
@@ -502,6 +503,7 @@ top10_relative_abundance_df <- calculate_top10_relative_abundance(
 )
 print(top10_relative_abundance_df)
 ```
+
 ```{r creating the stacked bar plots, include=FALSE}
 monthly_abundance_plots <- ggplot(top10_relative_abundance_df, aes(x = format(month, "%Y-%m"), y = relative_abundance, fill = object_annotation_category)) +
   geom_bar(stat = "identity") +
@@ -560,7 +562,7 @@ species_colors <- c(
   "Copepoda spp."      = "#d5b8ff",  
   "Other zooplankton"  = "#9bafff", 
   "Copepod nauplii"    = "#3a55b4", 
-  "Oithona spp."        = "#537dc6", 
+  "Oithona spp."       = "#537dc6", 
   "Paracalanus spp."   = "#6caddf", 
   "Podonidae"          = "#7fcff1", 
   "Psuedocalanus spp." = "#8cd9ff", 
@@ -717,7 +719,7 @@ species_colors <- c(
   "Copepoda spp."       = "#d5b8ff",
   "Other zooplankton"   = "#9bafff",
   "Copepod nauplii"     = "#3a55b4",
-  "Oithona spp."         = "#537dc6",
+  "Oithona spp."        = "#537dc6",
   "Paracalanus spp."    = "#6caddf",
   "Podonidae"           = "#7fcff1",
   "Psuedocalanus spp."  = "#8cd9ff",
