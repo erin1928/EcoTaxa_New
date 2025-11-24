@@ -52,9 +52,10 @@ anova_df$Month <- factor(anova_df$Month, levels = c("1", "2", "3", "4", "5", "6"
 anova_model_5 <- aov(log_biovol ~ Month * Year, data = anova_df)
 summary(anova_model_5) #Significance Month:Year p = 0.000231 ***
 TukeyHSD(anova_model_5)
-tukey_results_1 <- TukeyHSD(anova_model_5)
+#p.adjust(anova_model_5, method = "bonferroni")
+#tukey_results_1 <- TukeyHSD(anova_model_5)
 # Combine all TukeyHSD results into one data frame
-tukey_df_1 <- do.call(rbind, lapply(tukey_results_1, as.data.frame))
+#tukey_df_1 <- do.call(rbind, lapply(tukey_results_1, as.data.frame))
 
 # Add a column showing which factor each result came from
 tukey_df_1$Term <- rep(names(tukey_results_1), times = sapply(tukey_results_1, nrow))

@@ -17,12 +17,12 @@ biovolume_nbss <- Biovolume_df %>%
   filter(!object_annotation_category %in% c("badfocus<other"), 
     !object_annotation_category %in% c("Macroalgae"),
     !grepl("^not-living>", object_annotation_hierarchy)) %>%
-  group_by(Date, Fraction, Volume, Tow, Station, acq_min_mesh, acq_max_mesh, object_esd) %>%
+  group_by(Date, Fraction, Volume, Tow, Station, acq_min_mesh, acq_max_mesh) %>%
   mutate(
     biovol_conc = if_else(
       Fraction == 1,
-      Spherical_volume / (Volume / 1e6),
-      (Spherical_volume * (Fraction / 2)) / (Volume / 1e6)
+      Spherical_volume / (Volume / 1e6), #cm^3/m^ or mL/m^3
+      (Spherical_volume * (Fraction / 2)) / (Volume / 1e6) #cm^3/m^ or mL/m^3
     )
   ) %>%
   ungroup()
@@ -30,7 +30,8 @@ biovolume_nbss <- Biovolume_df %>%
 setDT(biovolume_nbss)
 biovolume_nbss[, sample_id := as.character(Date)]
 biovolume_nbss <- biovolume_nbss %>%
-  mutate(Spherical_Volume_mm3 = Spherical_volume * 1000)
+  mutate(Spherical_Volume_mm3 = Spherical_volume * 1000, 
+         object_esd_mm <- ((object_esd)*(0.0106))) #converting ESD from pixels to mm 
 #biovolume_nbss_filtered <- biovolume_nbss %>%
   #filter(Tow == 200)
 biovolume_nbss <- as.data.table(biovolume_nbss)
@@ -73,15 +74,15 @@ NBSS <- function(biovolume_nbss, N = TRUE) {
   #}
   
   # Calculate lower bound volume (Bvmin) from minimum ESD (µm to mm^3)
-  min_esd <- min(biovolume_nbss$object_esd, na.rm = TRUE)
-  min_radius_mm <- (min_esd * 1e-3) / 2
-  Bvmin <- (4/3) * pi * (min_radius_mm)^3
-  
+  #min_esd <- min(biovolume_nbss$object_esd_mm, na.rm = TRUE) #this is in mm now
+  #min_radius_mm <- (min_esd_mm) / 2
+  #Bvmin <- (4/3) * pi * (min_radius_mm)^3
+  Bvmin <- min(biovolume_nbss$Spherical_Volume_mm3)
   # Calculate upper bound volume (top) from maximum ESD (µm to mm^3)
-  max_esd <- max(biovolume_nbss$object_esd, na.rm = TRUE)
-  max_radius_mm <- (max_esd * 1e-3) / 2
-  top <- (4/3) * pi * (max_radius_mm)^3
-  
+  #max_esd <- max(biovolume_nbss$object_esd, na.rm = TRUE) #this is also in mm now
+  #max_radius_mm <- (max_esd) / 2
+  #top <- (4/3) * pi * (max_radius_mm)^3
+  top <- max(biovolume_nbss$Spherical_Volume_mm3)
   # Create volume intervals increasing by factor 2^(0.25) until top is reached
   intervals <- Bvmin
   current_volume <- Bvmin
@@ -101,22 +102,22 @@ NBSS <- function(biovolume_nbss, N = TRUE) {
     Bvtot <- b - a
     
     # Sum biovol_conc where Volume (converted from m^3 to mm^3) falls within [a, b)
-    add_ <- biovolume_nbss[(Spherical_Volume_mm3 > a) & (Spherical_Volume_mm3 <= b), sum(biovol_conc, na.rm=TRUE)]
+    add_ <- biovolume_nbss[(Spherical_Volume_mm3 > a) & (Spherical_Volume_mm3 <= b), sum(biovol_conc, na.rm=TRUE)] #mL/m^3 summing all biovol_conc within rows of the correct size bin
 
     
     if (N) {
-      add_ <- add_ / Bvtot  # Normalize by interval volume
+      add_ <- add_ / Bvtot  # Normalize by interval volume mL/m^3/mm^3
     }
     
     y <- c(y, add_)
     x <- c(x, b)
   }
   
-  nbss.plot <- data.table(Spectra = x, NBSS = y) #Creating "Spectra"
+  nbss.plot <- data.table(Spectra = x, NBSS = y) #Creating "Spectra" this is dumb change the name
   
   # Remove intervals with zero NBSS and log-transform NBSS
   nbss.plot <- nbss.plot[NBSS > 0]
-  nbss.plot[, NBSS := log10(NBSS)]
+  nbss.plot[, NBSS := log10(NBSS)] #log(mL/m^3/mm^3) NBSS and Spectra = log(mm^3)
   
   return(nbss.plot)
 }
@@ -139,23 +140,21 @@ NBSS <- function(biovolume_nbss, N = TRUE) {
 #' @export NBSS.plot
 NBSS.plot <- function(biovolume_nbss,ESD=TRUE){
   
-  sample_name <- biovolume_nbss[,unique(sample_id)] #Counting and calling the unique samples by name
+  #sample_name <- biovolume_nbss[,unique(sample_id)] #Counting and calling the unique samples by name
   data <- NBSS(biovolume_nbss,N=TRUE) #setting normalized NBSS function as dataset "data" 
   
   #convert back to ESD :
   
-  data[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)] #I don't follow what's happening here, why would we convert ESD just to convert it back? Is this to match units for the final graph?
+  data[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)] #inverse of the spectra calculation back to ESD in micrometers
   
-  min_mesh <- unique(biovolume_nbss$acq_min_mesh) #can we manually bin this? 200-700 and 700+ for each tow type?
-  max_mesh <- max(biovolume_nbss$acq_max_mesh) #somewhere this is what is getting messed up. Are the above lines supposed to combine into the original data frame and if so why is it not working? I think when I am printing it is these new columns that are not coming through effectively.
-  #combined_nbss <- biovolume_nbss[, NBSS(.SD, N = TRUE), by = sample_id]
-  #data[, sample_id := unique(biovolume_nbss$sample_id)]
+  min_mesh <- min(data$Spectra) * 1.5 #this takes the minimum value and multiplies it by 150% to account for copepods turning on their axis and slipping through the mesh netting. Currently it will scale with net size. Right now it does a good job of removing the curve and producing a relatively straight line.
+  max_mesh <- max(data$Spectra) #using the maximum value within the dataset for the end of the graph
   p <- ggplot(data, aes(x = Spectra, y = NBSS))+ #This is plotting all of the points together across all size ranges. I think the next step is manually separate them so I have 2 plots. One for 200 and 1 for 700.
   geom_point() +
   scale_x_log10(limits = c(min_mesh, max_mesh)) +
   labs(
-    x = "Equivalent Spherical Diameter [µm]",
-    y = "NBSS [mm³/m³]", #"NBSS [mm³/mm³/m³]" original but i think that is wrong
+    x = "Equivalent Spherical Diameter [µm]", #correct units
+    y = "NBSS log(mL/m^3/mm^3", #"NBSS [mm³/mm³/m³]" original but i think that is wrong
     title = "NBSS across samples"
   )
   
@@ -170,60 +169,32 @@ meso_nbss <- biovolume_nbss %>% filter(Tow == "200")
 
 just_meso <- NBSS.plot(meso_nbss, ESD = TRUE)
 print(just_meso)
-
+#start is 302.6836 microns
 ```
 
 ```{r NBSS by tow and by season}
 macro_nbss <- biovolume_nbss %>% filter(Tow == "700")
 
 just_macro <- NBSS.plot(macro_nbss, ESD = TRUE)
-print(just_meso)
+print(just_macro)
 
+macro_nbss <- biovolume_nbss %>% filter(Tow == "700")
+data2 <- NBSS(macro_nbss,N=TRUE) #setting normalized NBSS function as dataset "data" 
+  data2[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)]
+
+  min_mesh2 <- min(data2$Spectra)*1.5 # min(large_nbss$object_esd) #micro m -- JP not really of mesh but of particles
+
+  max_mesh2 <- max(data2$Spectra)
+  q <- ggplot(data2, aes(x = Spectra, y = NBSS))+ 
+  geom_point() +
+  scale_x_log10(limits = c(min_mesh2, max_mesh2)) +
+  labs(
+    x = "Equivalent Spherical Diameter [µm]",
+    y = "NBSS [mm³/m³]", #"NBSS [mm³/mm³/m³]" original but i think that is wrong
+    title = "NBSS across samples"
+  )
+  
+  print(q)
 ```
-
-```{r this is code copied from https://rdrr.io/github/clatrellu/Ecotaxa_R/src/R/nbss.R, include=FALSE}
-BSS.plot <- function(biovolume_nbss,ESD=TRUE){
-  
-  sample_name <- biovolume_nbss[,unique(object_id)]
-  data <- NBSS(biovolume_nbss,N=FALSE)
-  
-  #convert back to ESD :
-  
-  data[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)]
-  
-  min_esd <- unique(bin_min = biovolume_nbss %>% min(biovolume_nbss$object_esd))
-  max_esd <- unique(bin_max = biovolume_nbss %>% max(biovolume_nbss$object_esd))
-  
-  p <- ggplot(data,aes(x=Spectra,y=NBSS)) + 
-    geom_point()  + scale_x_log10(limits=c(min_esd,max_esd))+
-    labs(x="Equivalent Spherical Diameter [µm]",y="BSS [mm^3/m^3]",title = paste("BSS:",sample_name))
-  
-  return(p)
-}
-
-#this is for one sample at a time
-NBSS.plot <- function(biovolume_nbss,ESD=TRUE){
-  
-  sample_name <- unique(biovolume_nbss$object_id)
-  nbss_data <- NBSS(biovolume_nbss,N=TRUE)
-  
-  #convert back to ESD :
-  
-  # Convert Spectra from m^3 to mm^3 first
-  nbss_data[, Spectra := Spectra * 1e9]  
-
-# Then convert volume (mm^3) to ESD (µm)
-  nbss_data[, Spectra := 2 * 1e3 * (Spectra * 3 / (4 * pi))^(1/3)]
-  
-  min_esd <- min(biovolume_nbss$object_esd, na.rm = TRUE)
-  max_esd <- max(biovolume_nbss$object_esd, na.rm = TRUE)
-  
-  p <- ggplot(nbss_data,aes(x=Spectra,y=NBSS)) + 
-    geom_point()  + scale_x_log10(limits=c(min_esd,max_esd))+
-    labs(x="Equivalent Spherical Diameter [µm]",y="NBSS [mm^3/mm^3/m^3]",title = paste("NBSS:",sample_name))
-  
-  return(p)
-}
-
-```
+#Make NBSS for each season and month. Fit linear regression for all curves and compare. Use slope as a funciton of different environmental variables. Check the assumptions for SD gams. Make sure all components are normally distributed, look online to see what components I need to check and email Jerome. make boundaries 150% of mesh size. Each slope will be a value. Create data table with slope as y and month as x and graph to see how it is comparing.
 

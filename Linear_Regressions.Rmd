@@ -1,0 +1,24 @@
+---
+title: "Linear Regressions"
+author: "Erin Anderson"
+date: "2025-11-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Fitting a linear regression for the subsetted data I plotted, NOT the full range of values in data1
+lm_data <- data1 %>%
+  filter(Spectra >= min_mesh1, Spectra <= max_mesh1)
+  
+model1 <- lm(NBSS ~ Spectra, data = lm_data)
+summary(model1)
+
+# Extract coefficients
+intercept <- coef(model1)[1]
+slope <- coef(model1)[2]
+
+# Create equation text (formatted)
+eq_label <- paste0(
+  "y = ", round(slope, 6), "x + ", round(intercept, 3)
+)
+```

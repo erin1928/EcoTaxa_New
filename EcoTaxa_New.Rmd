@@ -203,31 +203,16 @@ Minor_mm <- (combined_df$object_minor)*(combined_df$process_particle_pixel_size_
 Radius_circle <- sqrt(Area_mm2/pi)
 Spherical_Volume <- ((4/3)*pi*(((combined_df$object_esd/2)*combined_df$process_particle_pixel_size_mm)^3))/1000 #ESD in pixels to cm^3 divide by 1000 to convert to mL (vol 1 individual)
 #Divided by 2 to get radius
-Biovolume <- ((Spherical_Volume*(combined_df$acq_sub_part)) / (combined_df$sample_tot_vol/(100^3)))
+#Biovolume <- ((Spherical_Volume*(combined_df$acq_sub_part)) / (combined_df$sample_tot_vol/(100^3)))
 ```
-```{r Plain Biovol dataframe, include=FALSE}
 
-# Assuming combined_df already contains object_date and acq_sub_part
-Biovolume_df <- data.frame(
-  Biovolume = Biovolume,  # Replace this with your Biovolume vector
-  Date = combined_df$object_date,  # Date from object_date column
-  Fraction = combined_df$acq_sub_part, # Include acq_sub_part here
-  Volume,
-  Tow = combined_df$sample_net_mesh # Include sample_net_mesh here
- )
-
-print(Biovolume_df)
-
-n_unique_dates <- length(unique(combined_df$object_date))
-print(n_unique_dates)
-```
 ```{r aggregates all pre-adjusted biovols by dateI TIHNK THIS IS CORRECT CHECK W TRICIA, include=FALSE}
 # Convert to Date format if needed
 Biovolume_df$Date <- as.Date(Biovolume_df$Date)
 
 # Assuming combined_df already contains object_date and acq_sub_part
 Biovolume_df <- data.frame(
-  Biovolume = Biovolume,  # Replace this with your Biovolume vector
+ # Biovolume = Biovolume,  # Replace this with your Biovolume vector
   Date = combined_df$object_date,  # Date from object_date column
   Fraction = combined_df$acq_sub_part, # Include acq_sub_part here
   Volume = combined_df$sample_tot_vol,# Include sample_net_mesh here
@@ -253,7 +238,8 @@ print(Biovolume_df)
 # Group by Date and keep relevant columns
 biovolume_by_date <- Biovolume_df %>%
   filter(!grepl("^not-living>", object_annotation_hierarchy, #)) %>%
-                object_annotation_category != "badfocus<other")) %>%
+                object_annotation_category != "badfocus<other",
+                object_annotation_category != "Macroalgae")) %>%
   group_by(Date, Fraction, Volume, Tow, Station, Year) %>%
   summarise(Biovolume_tot = sum(Spherical_volume), .groups = "drop")
 
@@ -262,8 +248,8 @@ biovolume_by_date <- biovolume_by_date %>%
   mutate(
     biovol_conc = if_else( #biovol_conc is the adjusted biovolume showing the biovolume of a sample per unit volume of seawater
       Fraction == 1, #scanned the entire sample, skips conversion
-      Biovolume_tot / (Volume / 1e6), #divides by the corrected volume
-      (Biovolume_tot * (Fraction / 2)) / (Volume / 1e6) #divides splitting fraction by 2 since 2 scans of the same fraction were taken, essentially if 2 1/32 scans were taken then 2/32 = 1/16 (computes correction and then divides by corrected volume)
+      Biovolume_tot / (Volume / 1e6), #divides by the corrected volume (mL/m^3)
+      (Biovolume_tot * (Fraction / 2)) / (Volume / 1e6) #divides splitting fraction by 2 since 2 scans of the same fraction were taken, essentially if 2 1/32 scans were taken then 2/32 = 1/16 (computes correction and then divides by corrected volume) (mL/m^3)
     )
   )
 # Aggregate values for 2025-02-26 (one is a single comb jelly pulled out of the tow)
@@ -287,6 +273,29 @@ biovolume_by_date <- biovolume_by_date %>%
   bind_rows(agg_row)
 # View result
 print(biovolume_by_date)
+
+#max(biovolume_by_date$biovol_conc) #[biovolume_by_date$Year == 2024], na.rm = TRUE)
+#min(biovolume_by_date$biovol_conc[biovolume_by_date$Year == 2024], na.rm = TRUE)
+
+biovolume_by_date %>%
+  filter(Year == 2024, Tow == 700) %>%
+  slice_max(biovol_conc, n = 1) %>%
+  select(Date, biovol_conc)
+
+biovolume_by_date %>%
+  filter(Year == 2024, Tow == 700) %>%
+  slice_min(biovol_conc, n = 1) %>%
+  select(Date, biovol_conc)
+
+biovolume_by_date %>%
+  filter(Year == 2025, Tow == 200) %>%
+  slice_max(biovol_conc, n = 3) %>%
+  select(Date, biovol_conc)
+
+biovolume_by_date %>%
+  filter(Year == 2025, Tow == 200) %>%
+  slice_min(biovol_conc, n = 3) %>%
+  select(Date, biovol_conc)	
 ```
 
 ```{r Biovolume plots, include=FALSE}
@@ -313,12 +322,17 @@ biovolume_plot_200 <- ggplot(data = biovolume_by_date %>% filter(Tow %in% as.num
   labs(
     title = NULL,
     x = "Date",
-    y = expression("Biovolume (mm"^{-3} ~ m^{-3} * ")")
+    y = expression("Biovolume (mL" ~ m^{-3} * ")")
   ) +
   theme(panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.50))
+
 # Plot for Tow = 700
-biovolume_plot_700 <- ggplot(data = biovolume_by_date %>% filter(Tow == 700), aes(x = Date, y = biovol_conc)) +
-  geom_line(color = "black", size = 1.5) +  # Thicker line with size = 1.5
+cutoff <- as.Date("2024-11-18")   # <-- your chosen stop date
+start_date <- as.Date("2025-08-06")
+biovolume_plot_700 <- ggplot(data = biovolume_by_date %>% filter(Tow %in% as.numeric(700), Station %in% c("ram", "ram_island", "nan", "NaN"), Date >= start_date), aes(x = Date, y = biovol_conc)) +
+  geom_line(color = "black", size = 0.75) +  # Thicker line with size = 1.5
+  geom_point()+
+  #geom_smooth()+
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
@@ -326,25 +340,27 @@ biovolume_plot_700 <- ggplot(data = biovolume_by_date %>% filter(Tow == 700), ae
     axis.title.x = element_text(size = 16),
     axis.title.y = element_text(size = 16),
     plot.title = element_text(size = 22, hjust = 0.5),
-    #panel.grid = element_blank(),  # Remove all grid lines
+    panel.grid = element_blank(),  # Remove all grid lines
     axis.line = element_line(color = "black", size = 0.5)  # Add axis lines
   ) +
     scale_x_date(
     date_breaks = "1 month",       # Breaks at 1-month intervals
     date_labels = "%B"             # Labels months as abbreviated names (e.g., "Jan", "Feb", "Mar")
   ) +
-  scale_y_continuous(labels = label_number(scale = 1, accuracy = 0.01)) +
+  scale_y_continuous(labels = label_number(scale = 1, accuracy = 1)) +
   labs(
     title = NULL,
     x = "Date",
-    y = expression("Biovolume (individuals" ~ mL^{-3} * ")")
-  )
-
+    y = expression("Biovolume (mL" ~ m^{-3} * ")")
+  ) +
+  theme(panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.50))
 # Print both plots
 print(biovolume_plot_200)
 ggsave("biovolume_plot_200.png", plot = biovolume_plot_200, dpi = 300)
 browseURL("biovolume_plot_200.png")
 print(biovolume_plot_700)
+ggsave("biovolume_plot_700_2024.png", plot = biovolume_plot_700, dpi = 300)
+browseURL("biovolume_plot_200_2024.png")
 ```
 ```{r, base R 200 biovolume plot}
 biovolume_200 <- biovolume_200[order(biovolume_200$Date), ]
