@@ -17,7 +17,7 @@ biovolume_nbss <- Biovolume_df %>%
   filter(!object_annotation_category %in% c("badfocus<other"), 
     !object_annotation_category %in% c("Macroalgae"),
     !grepl("^not-living>", object_annotation_hierarchy)) %>%
-  group_by(Date, Fraction, Volume, Tow, Station, acq_min_mesh, acq_max_mesh) %>%
+  group_by(Date, Fraction, Volume, Tow, Station) %>% # acq_min_mesh, acq_max_mesh
   mutate(
     biovol_conc = if_else(
       Fraction == 1,
@@ -28,10 +28,10 @@ biovolume_nbss <- Biovolume_df %>%
   ungroup()
 
 setDT(biovolume_nbss)
-biovolume_nbss[, sample_id := as.character(Date)]
+#biovolume_nbss[, sample_id := as.character(Date)]
 biovolume_nbss <- biovolume_nbss %>%
   mutate(Spherical_Volume_mm3 = Spherical_volume * 1000, 
-         object_esd_mm <- ((object_esd)*(0.0106))) #converting ESD from pixels to mm 
+         object_esd_mm = ((object_esd)*(0.0106))) #converting ESD from pixels to mm 
 #biovolume_nbss_filtered <- biovolume_nbss %>%
   #filter(Tow == 200)
 biovolume_nbss <- as.data.table(biovolume_nbss)
@@ -165,36 +165,129 @@ print(all_samples)
 ```  
 
 ```{r NBSS by tow and by season}
-meso_nbss <- biovolume_nbss %>% filter(Tow == "200")
+#meso_nbss <- biovolume_nbss %>% filter(Tow == "200")
 
-just_meso <- NBSS.plot(meso_nbss, ESD = TRUE)
-print(just_meso)
+#just_meso <- NBSS.plot(meso_nbss, ESD = TRUE)
+#print(just_meso)
 #start is 302.6836 microns
+
+meso_nbss <- biovolume_nbss %>% filter(Tow == "200")
+data1 <- NBSS(meso_nbss,N=TRUE) #setting normalized NBSS function as dataset "data" 
+  data1[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)]
+
+  min_mesh1 <- min(data1$Spectra)*1.5 #- not working as intended, multiplied 700*1.5 and added that as minimum
+  # min(large_nbss$object_esd) #micro m -- JP not really of mesh but of particles
+
+  max_mesh1 <- max(data1$Spectra)
+  meso_plot <- ggplot(data1, aes(x = Spectra, y = NBSS))+ 
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  annotate(
+    "text",
+    x = 8000, 
+    y = 3,
+    label = eq_label,
+    hjust = 0,
+    vjust = 1,
+    size = 4) +
+  scale_x_log10(limits = c(min_mesh1, max_mesh1)) +
+  labs(
+    x = "Equivalent Spherical Diameter [µm]",
+    y = "NBSS log[mL/m³/mm³]",
+    title = NULL
+  )
+  
+  print(meso_plot)
+  
+# Fitting a linear regression for the subsetted data I plotted, NOT the full range of values in data1
+lm_data <- data1 %>%
+  filter(Spectra >= min_mesh1, Spectra <= max_mesh1)
+  
+model1 <- lm(NBSS ~ Spectra, data = lm_data)
+summary(model1)
+
+# Extract coefficients
+intercept <- coef(model1)[1]
+slope <- coef(model1)[2]
+
+# Create equation text (formatted)
+eq_label <- paste0(
+  "y = ", round(slope, 6), "x + ", round(intercept, 3)
+)
+
+
 ```
 
 ```{r NBSS by tow and by season}
-macro_nbss <- biovolume_nbss %>% filter(Tow == "700")
+#macro_nbss <- biovolume_nbss %>% filter(Tow == "700")
 
-just_macro <- NBSS.plot(macro_nbss, ESD = TRUE)
-print(just_macro)
+#just_macro <- NBSS.plot(macro_nbss, ESD = TRUE)
+#print(just_macro)
 
 macro_nbss <- biovolume_nbss %>% filter(Tow == "700")
 data2 <- NBSS(macro_nbss,N=TRUE) #setting normalized NBSS function as dataset "data" 
   data2[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)]
 
-  min_mesh2 <- min(data2$Spectra)*1.5 # min(large_nbss$object_esd) #micro m -- JP not really of mesh but of particles
+  min_mesh2 <- min(1050) #data2$Spectra)*1.5 - not working as intended, multiplied 700*1.5 and added that as minimum
+  # min(large_nbss$object_esd) #micro m -- JP not really of mesh but of particles
 
   max_mesh2 <- max(data2$Spectra)
   q <- ggplot(data2, aes(x = Spectra, y = NBSS))+ 
   geom_point() +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+  annotate(
+    "text",
+    x = 3000, 
+    y = 0.75,
+    label = eq_label1,
+    hjust = 0,
+    vjust = 1,
+    size = 4) +
   scale_x_log10(limits = c(min_mesh2, max_mesh2)) +
   labs(
     x = "Equivalent Spherical Diameter [µm]",
-    y = "NBSS [mm³/m³]", #"NBSS [mm³/mm³/m³]" original but i think that is wrong
+    y = "NBSS log[mL/m³/mm³]", #"NBSS [mm³/mm³/m³]" original but i think that is wrong
     title = "NBSS across samples"
   )
   
-  print(q)
+  print(q) 
+  
+
+model2 <- lm(NBSS ~ Spectra, data = data2)
+summary(model2)
+# Extract coefficients
+intercept1 <- coef(model2)[1]
+slope1 <- coef(model2)[2]
+
+# Create equation text (formatted)
+eq_label1 <- paste0(
+  "y = ", round(slope1, 6), "x + ", round(intercept1, 3)
+)
 ```
+
+```{r NBSS by tow and by season}
+monthly_nbss <- biovolume_nbss %>% 
+  mutate(
+    Month = as.month(Date),
+    filter(Tow == "200"))
+data3 <- NBSS(monthly_nbss,N=TRUE) #setting normalized NBSS function as dataset "data" 
+  data3[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)]
+
+  min_mesh2 <- min(350) #data2$Spectra)*1.5 - not working as intended, multiplied 700*1.5 and added that as minimum
+  # min(large_nbss$object_esd) #micro m -- JP not really of mesh but of particles
+
+  max_mesh3 <- max(data3$Spectra)
+  monthly_nbss <- ggplot(data3, aes(x = Spectra, y = NBSS))+ 
+  geom_point() +
+  scale_x_log10(limits = c(min_mesh3, max_mesh3)) +
+  labs(
+    x = "Equivalent Spherical Diameter [µm]",
+    y = "NBSS log[mL/m³/mm³]", #"NBSS [mm³/mm³/m³]" original but i think that is wrong
+    title = "NBSS For Each Month"
+  )
+  
+  print(monthly_nbss) 
+```
+
 #Make NBSS for each season and month. Fit linear regression for all curves and compare. Use slope as a funciton of different environmental variables. Check the assumptions for SD gams. Make sure all components are normally distributed, look online to see what components I need to check and email Jerome. make boundaries 150% of mesh size. Each slope will be a value. Create data table with slope as y and month as x and graph to see how it is comparing.
 
