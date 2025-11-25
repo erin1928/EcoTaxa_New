@@ -222,8 +222,8 @@ Biovolume_df <- data.frame(
   object_id = combined_df$object_id,
   object_annotation_hierarchy = combined_df$object_annotation_hierarchy,
   object_annotation_category = combined_df$object_annotation_category,
-  acq_min_mesh = combined_df$acq_min_mesh, 
-  acq_max_mesh = combined_df$acq_max_mesh,
+  #acq_min_mesh = combined_df$acq_min_mesh, 
+  #acq_max_mesh = combined_df$acq_max_mesh,
   Year = year(combined_df$object_date), 
   object_esd = combined_df$object_esd
  )

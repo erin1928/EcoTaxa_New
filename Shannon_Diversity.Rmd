@@ -147,7 +147,7 @@ gam_1 <- gam(shannon_index ~ s(avg_chl_a) + s(Water_Temp_Avg) + s(Salinity_Avg) 
 # Summary
 summary(gam_1)
 
-gam_2 <- gam(shannon_index ~ s(Water_Temp_Avg) + s(Secchi.depth), family = gaussian(), data = shannon_with_season_gam) #Second GAM with only the significant response variables
+gam_2 <- gam(shannon_index ~ s(Water_Temp_Avg, k = 4) + s(Secchi.depth, k =4), family = gaussian(), data = shannon_with_season_gam) #Second GAM with only the significant response variables
 summary(gam_2) #Std. error = 0,03436, R^2 (adj) = 0.137, Dev. explained = 17.3%
 # Plot
 plot(gam_2, pages = 1, rug = TRUE)
