@@ -165,31 +165,19 @@ print(all_samples)
 ```  
 
 ```{r NBSS by tow and by season}
-#meso_nbss <- biovolume_nbss %>% filter(Tow == "200")
-
-#just_meso <- NBSS.plot(meso_nbss, ESD = TRUE)
-#print(just_meso)
-#start is 302.6836 microns
-
 meso_nbss <- biovolume_nbss %>% filter(Tow == "200")
 data1 <- NBSS(meso_nbss,N=TRUE) #setting normalized NBSS function as dataset "data" 
   data1[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)]
 
-  min_mesh1 <- min(data1$Spectra)*1.5 #- not working as intended, multiplied 700*1.5 and added that as minimum
-  # min(large_nbss$object_esd) #micro m -- JP not really of mesh but of particles
-
+  min_mesh1 <- min(data1$Spectra)#*1.5 #- not working as intended, multiplied 700*1.5 and added that as minimum
   max_mesh1 <- max(data1$Spectra)
-  meso_plot <- ggplot(data1, aes(x = Spectra, y = NBSS))+ 
-  geom_point() +
-  geom_smooth(method = "lm", se = FALSE, color = "red") +
-  annotate(
-    "text",
-    x = 8000, 
-    y = 3,
-    label = eq_label,
-    hjust = 0,
-    vjust = 1,
-    size = 4) +
+  
+meso_straight <- data1
+ meso_straight <- meso_straight[meso_straight$Spectra>700,] #selecting only the straight line
+  meso_straight <- meso_straight[meso_straight$Spectra<3000,]
+   meso_plot <- ggplot(meso_straight, aes(x = Spectra, y = NBSS))+ 
+  geom_point(data = data1, aes(Spectra, y = NBSS), color = "black")+
+    geom_point(color = "red") +
   scale_x_log10(limits = c(min_mesh1, max_mesh1)) +
   labs(
     x = "Equivalent Spherical Diameter [µm]",
@@ -199,23 +187,50 @@ data1 <- NBSS(meso_nbss,N=TRUE) #setting normalized NBSS function as dataset "da
   
   print(meso_plot)
   
-# Fitting a linear regression for the subsetted data I plotted, NOT the full range of values in data1
-lm_data <- data1 %>%
-  filter(Spectra >= min_mesh1, Spectra <= max_mesh1)
-  
-model1 <- lm(NBSS ~ Spectra, data = lm_data)
+model1 <- lm(NBSS ~ log(Spectra), data = meso_straight)
 summary(model1)
 
-# Extract coefficients
-intercept <- coef(model1)[1]
-slope <- coef(model1)[2]
 
-# Create equation text (formatted)
-eq_label <- paste0(
-  "y = ", round(slope, 6), "x + ", round(intercept, 3)
-)
+meso_plot + geom_abline(intercept = model1$coefficients[1], slope = model1$coefficients[2], color = "red")
+
+#rm(model1)
+#rm(meso_plot)
+#rm(meso_nbss)
+```
+
+```{r, NBSS all samples using volume instead of ESD}
+nbss_data <- NBSS(biovolume_nbss,N=TRUE) 
+
+  min_mesh <- 4/3*pi*(min(nbss_data$Spectra)/2)^3 
+  
+  max_mesh <- 4/3*pi*(max(nbss_data$Spectra)/2)^3 
+
+  NBSS_straight <- nbss_data
+  NBSS_straight$Spectra <-  4/3*pi*(NBSS_straight$Spectra/2)^3 #mm3
+  NBSS_straight <- NBSS_straight[NBSS_straight$Spectra>10^-3,] #selecting only the straight line
+  NBSS_straight <- NBSS_straight[NBSS_straight$Spectra<10^4,]
+  
+ Q <-  ggplot(NBSS_straight, aes(x = Spectra, y = NBSS))+
+     geom_point(data = nbss_data, aes(x = 4/3*pi*(Spectra/2)^3, y = NBSS), color = "black")+
+    geom_point(color = "red") +
+  scale_x_log10(limits = c(min_mesh, max_mesh)) +
+     labs(
+         x = "Volume [mm3]",
+         y = "NBSS log10([mL/mm³/m³])",
+         title = "NBSS across samples"
+     )
 
 
+m1 <- lm(NBSS ~ log10(Spectra), data = NBSS_straight)
+summary(m1)
+
+Q + geom_abline(intercept = m1$coefficients[1], slope = m1$coefficients[2], color = "red")
+
+#rm(nbss_data)
+#rm(Q)
+#rm(m1)
+#rm(NBSS_straight)
+print(NBSS_straight)
 ```
 
 ```{r NBSS by tow and by season}
@@ -236,7 +251,7 @@ data2 <- NBSS(macro_nbss,N=TRUE) #setting normalized NBSS function as dataset "d
   
   data2_filtered <- data2 %>% 
     filter(Spectra >= 1050)
-  model2 <- lm(NBSS ~ Spectra, data = data2_filtered)
+  model2 <- lm(NBSS ~ log(Spectra), data = data2_filtered)
   summary(model2)
 # Extract coefficients
 intercept1 <- coef(model2)[1]
@@ -247,15 +262,6 @@ eq_label1 <- paste0(
   
 q <- ggplot(data2, aes(x = Spectra, y = NBSS))+ 
   geom_point() +
-    geom_smooth(method = "lm", se = FALSE, color = "red") +
-  annotate(
-    "text",
-    x = 3000, 
-    y = 0.75,
-    label = eq_label1,
-    hjust = 0,
-    vjust = 1,
-    size = 4) +
   scale_x_log10(limits = c(min_mesh2, max_mesh2)) +
   labs(
     x = "Equivalent Spherical Diameter [µm]",
@@ -265,7 +271,9 @@ q <- ggplot(data2, aes(x = Spectra, y = NBSS))+
   
   print(q) 
   
-plot(model2, which = 3)
+
+
+#geom_smooth(method = "lm", se = FALSE, color = "red") + annotate("text",x = 3000, y = 0.75,label = eq_label1,hjust = 0,vjust = 1,size = 4) +
 ```
 #Monthly NBSS
 ```{r Monthly NBSS meso}
