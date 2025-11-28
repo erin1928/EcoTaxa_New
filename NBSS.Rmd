@@ -167,16 +167,19 @@ print(all_samples)
 ```{r NBSS by tow and by season}
 meso_nbss <- biovolume_nbss %>% filter(Tow == "200")
 data1 <- NBSS(meso_nbss,N=TRUE) #setting normalized NBSS function as dataset "data" 
-  data1[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)]
+  #data1[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)] #back to ESD
 
-  min_mesh1 <- min(data1$Spectra)#*1.5 #- not working as intended, multiplied 700*1.5 and added that as minimum
-  max_mesh1 <- max(data1$Spectra)
+  min_mesh1 <- 4/3*pi*(min(data1$Spectra)/2)^3 
+  max_mesh1 <- 4/3*pi*(max(data1$Spectra)/2)^3
   
-meso_straight <- data1
- meso_straight <- meso_straight[meso_straight$Spectra>700,] #selecting only the straight line
-  meso_straight <- meso_straight[meso_straight$Spectra<3000,]
-   meso_plot <- ggplot(meso_straight, aes(x = Spectra, y = NBSS))+ 
-  geom_point(data = data1, aes(Spectra, y = NBSS), color = "black")+
+  meso_straight <- data1
+ #meso_straight <- meso_straight[meso_straight$Spectra>700,] #selecting only the straight line
+  #meso_straight <- meso_straight[meso_straight$Spectra<3000,]
+  meso_straight$Spectra <-  4/3*pi*(meso_straight$Spectra/2)^3 #mm3
+  meso_straight <- meso_straight[meso_straight$Spectra>10^-3,] #selecting only the straight line
+  meso_straight <- meso_straight[meso_straight$Spectra<10^3,]
+  meso_plot <- ggplot(meso_straight, aes(x = Spectra, y = NBSS))+ 
+  geom_point(data = data1, aes(x = 4/3*pi*(Spectra/2)^3, y = NBSS), color = "black")+
     geom_point(color = "red") +
   scale_x_log10(limits = c(min_mesh1, max_mesh1)) +
   labs(
@@ -192,7 +195,8 @@ summary(model1)
 
 
 meso_plot + geom_abline(intercept = model1$coefficients[1], slope = model1$coefficients[2], color = "red")
-
+ggsave("NBSS_meso.png", plot = meso_plot, dpi = 300)
+browseURL("NBSS_meso.png")
 #rm(model1)
 #rm(meso_plot)
 #rm(meso_nbss)
@@ -295,7 +299,8 @@ monthly_nbss <- biovolume_nbss %>%
          Year  = year(Date))
 data3 <- NBSS(monthly_nbss, N = TRUE)
 data3[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)]
-min_mesh3 <- 350                          # fixed lower limit
+min_mesh3 <- 350  # fixed lower limit (microns)
+model_list <- list()
 for (yy in sort(unique(monthly_nbss$Year))) {
   
   yearly_data <- monthly_nbss %>% filter(Year == yy)
@@ -310,14 +315,22 @@ for (yy in sort(unique(monthly_nbss$Year))) {
     data3 <- as.data.frame(data3)     # avoid data.table side-effects
     
     # Transform Spectra
-    data3$Spectra <- 2 * 10^3 * (data3$Spectra * 3 / (4 * pi))^(1/3)
+    data3$Spectra <- 2 * 10^3 * (data3$Spectra * 3 / (4 * pi))^(1/3) #microns
     
     # Determine maximum ESD for this month & year
     max_mesh3 <- max(data3$Spectra, na.rm = TRUE)
+    monthly_straight <- data3
+    monthly_straight <- monthly_straight[monthly_straight$Spectra>700,] #selecting only the straight line
+  monthly_straight <- monthly_straight[monthly_straight$Spectra<3000,]
+model_name <- paste0("lm_", yy, "_", mm)
+    fit <- lm(NBSS ~ log10(Spectra), data = monthly_straight)
 
+    # Save model for later use
+    model_list[[model_name]] <- fit
     # Build the plot
-    p <- ggplot(data3, aes(x = Spectra, y = NBSS)) +
-      geom_point() +
+    p <- ggplot(monthly_straight, aes(x = Spectra, y = NBSS)) +
+      geom_point(data = data3, aes(Spectra, y = NBSS), color = "black")+
+    geom_point(color = "red") +
       scale_x_log10(limits = c(min_mesh3, max_mesh3)) +
       labs(
         x = "Equivalent Spherical Diameter [µm]",
@@ -329,6 +342,24 @@ for (yy in sort(unique(monthly_nbss$Year))) {
     print(p)
   }
 }
+
+model_list[["lm_2024_5"]]
+model_list[["lm_2024_6"]]
+model_list[["lm_2024_7"]]
+model_list[["lm_2024_8"]]
+model_list[["lm_2024_9"]]
+model_list[["lm_2024_10"]]
+model_list[["lm_2024_11"]]
+model_list[["lm_2024_12"]]
+model_list[["lm_2025_1"]]
+model_list[["lm_2025_2"]]
+model_list[["lm_2025_3"]]
+model_list[["lm_2025_4"]]
+model_list[["lm_2025_5"]]
+model_list[["lm_2025_6"]]
+model_list[["lm_2025_7"]]
+model_list[["lm_2025_8"]]
+model_list[["lm_2025_9"]]
 ```
 
 #Make NBSS for each season and month. Fit linear regression for all curves and compare. Use slope as a funciton of different environmental variables. Check the assumptions for SD gams. Make sure all components are normally distributed, look online to see what components I need to check and email Jerome. make boundaries 150% of mesh size. Each slope will be a value. Create data table with slope as y and month as x and graph to see how it is comparing.
