@@ -167,19 +167,16 @@ print(all_samples)
 ```{r NBSS by tow and by season}
 meso_nbss <- biovolume_nbss %>% filter(Tow == "200")
 data1 <- NBSS(meso_nbss,N=TRUE) #setting normalized NBSS function as dataset "data" 
-  #data1[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)] #back to ESD
+  data1[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)] #back to ESD
 
-  min_mesh1 <- 4/3*pi*(min(data1$Spectra)/2)^3 
-  max_mesh1 <- 4/3*pi*(max(data1$Spectra)/2)^3
+  min_mesh1 <- min(data1$Spectra)
+  max_mesh1 <- max(data1$Spectra)
   
-  meso_straight <- data1
- #meso_straight <- meso_straight[meso_straight$Spectra>700,] #selecting only the straight line
-  #meso_straight <- meso_straight[meso_straight$Spectra<3000,]
-  meso_straight$Spectra <-  4/3*pi*(meso_straight$Spectra/2)^3 #mm3
-  meso_straight <- meso_straight[meso_straight$Spectra>10^-3,] #selecting only the straight line
-  meso_straight <- meso_straight[meso_straight$Spectra<10^3,]
-  meso_plot <- ggplot(meso_straight, aes(x = Spectra, y = NBSS))+ 
-  geom_point(data = data1, aes(x = 4/3*pi*(Spectra/2)^3, y = NBSS), color = "black")+
+  meso_straight_esd <- data1
+ meso_straight_esd <- meso_straight_esd[meso_straight_esd$Spectra>700,] #selecting only the straight line
+  meso_straight_esd <- meso_straight_esd[meso_straight_esd$Spectra<3000,]
+  meso_plot_esd <- ggplot(meso_straight_esd, aes(x = Spectra, y = NBSS))+ 
+  geom_point(data = data1, aes(x = Spectra, y = NBSS), color = "black")+
     geom_point(color = "red") +
   scale_x_log10(limits = c(min_mesh1, max_mesh1)) +
   labs(
@@ -188,15 +185,15 @@ data1 <- NBSS(meso_nbss,N=TRUE) #setting normalized NBSS function as dataset "da
     title = NULL
   )
   
-  print(meso_plot)
+  print(meso_plot_esd)
   
-model1 <- lm(NBSS ~ log(Spectra), data = meso_straight)
+model1 <- lm(NBSS ~ log(Spectra), data = meso_straight_esd)
 summary(model1)
 
 
-meso_plot + geom_abline(intercept = model1$coefficients[1], slope = model1$coefficients[2], color = "red")
-ggsave("NBSS_meso.png", plot = meso_plot, dpi = 300)
-browseURL("NBSS_meso.png")
+
+#ggsave("NBSS_meso.png", plot = meso_plot, dpi = 300)
+#browseURL("NBSS_meso.png")
 #rm(model1)
 #rm(meso_plot)
 #rm(meso_nbss)
@@ -238,15 +235,11 @@ print(NBSS_straight)
 ```
 
 ```{r NBSS by tow and by season}
-#macro_nbss <- biovolume_nbss %>% filter(Tow == "700")
-
-#just_macro <- NBSS.plot(macro_nbss, ESD = TRUE)
-#print(just_macro)
 
 # Create equation text (formatted)
 macro_nbss <- biovolume_nbss %>% filter(Tow == "700")
 data2 <- NBSS(macro_nbss,N=TRUE) #setting normalized NBSS function as dataset "data" 
-  data2[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)]
+  data2[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)] #ESD
 
   min_mesh2 <- min(1050) #data2$Spectra)*1.5 - not working as intended, multiplied 700*1.5 and added that as minimum
   # min(large_nbss$object_esd) #micro m -- JP not really of mesh but of particles
@@ -281,12 +274,6 @@ q <- ggplot(data2, aes(x = Spectra, y = NBSS))+
 ```
 #Monthly NBSS
 ```{r Monthly NBSS meso}
-#max_mesh3 <- max(data3$Spectra, na.rm=TRUE)
-
-
-#jan_nbss <- ggplot(data3, aes(x = Spectra, y = NBSS)) +geom_point() +scale_x_log10(limits = c(min_mesh3, max_mesh3)) +labs(x = "Equivalent Spherical Diameter [µm]",y = "NBSS log[mL/m³/mm³]",title = paste("NBSS for Month", m))
-#print(jan_nbss) 
-
 library(dplyr)
 library(ggplot2)
 library(lubridate)
