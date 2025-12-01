@@ -1,0 +1,295 @@
+---
+title: "chl_and_biovolume"
+author: "Erin Anderson"
+date: "2025-11-02"
+output: html_document
+---
+
+#Starting the chlorophyll and biolvume threshold and bloom calculations here:
+```{r annual median zoop biovol using corrected df, include=FALSE}
+library(dplyr)
+
+# Step 1: Filter by Tow type (e.g., "200")
+filtered_data <- biovolume_by_date %>%
+  filter(Tow == "200")
+
+# Step 2: Calculate overall average biovolume (across all dates and all 200 tows)
+avg_bio <- mean(filtered_data$biovol_conc, na.rm = TRUE)
+
+print(avg_bio)
+
+# Step 3: Calculate 5% threshold
+threshold_bio <- (avg_bio * 0.05) + avg_bio
+
+print(threshold_bio)
+
+# Step 4: Filter entries above the threshold
+dates_above_threshold <- filtered_data %>%
+  filter(biovol_conc > threshold_bio)
+
+# Step 5: View results
+print(dates_above_threshold %>% select(Date, Tow, biovol_conc))
+```
+```{r import chl a data, include=FALSE}
+chl_data <- read.csv("chl_a.csv")
+chl_data_df <- as.data.frame(chl_data)
+print(chl_data_df) 
+head(chl_data_df$Date, 10)
+```
+```{r change formatting, include=FALSE}
+# Convert the Date column to Date format
+library(lubridate)
+
+chl_data_df$Date <- mdy(chl_data_df$Date)
+Date <- chl_data_df$Date
+print(chl_data_df)
+sum(is.na(chl_data_df$Date))
+```
+```{r graph chl a 1, include=FALSE}
+chl_ram <- chl_data_df %>%
+  filter(Station == "Ram")
+
+chl_plot <- ggplot(data = chl_ram, aes(x = Date, y = avg_chl_a)) +
+  #geom_line() +
+  geom_point()+
+  labs(title = NULL,
+       x = "Date",
+       y = "Average Chlorophyll a Concentration (µg/L)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10)) +
+    scale_x_date(
+    date_breaks = "1 month",       # Breaks at 1-month intervals
+    date_labels = "%B"             # Labels months as abbreviated names
+  )
+print(chl_plot)
+ggsave("chl_a_plot.png", plot = chl_plot, dpi = 300)
+browseURL("chl_a_plot.png")
+```
+
+```{r zoop and chl a next to each other, include=FALSE}
+
+# --- Stack chlorophyll on top of 200 biovolume plot ---
+library(patchwork)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# Find common date range
+start_date <- max(min(chl_data_df$Date, na.rm = TRUE),
+                  min(biovolume_by_date$Date, na.rm = TRUE))
+end_date <- min(max(chl_data_df$Date, na.rm = TRUE),
+                max(biovolume_by_date$Date, na.rm = TRUE))
+
+# Modify chl_plot — same x-axis limits but HIDE x labels and title
+chl_plot <- chl_plot +
+  scale_x_date(
+    limits = c(start_date, end_date),
+    date_breaks = "1 month",
+    date_labels = "%B"
+  ) +
+  labs(title = NULL, x = NULL) +
+  theme(
+    axis.text.x = element_blank(),     # remove x-axis labels
+    axis.ticks.x = element_blank(),    # remove x-axis ticks
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.75)
+  )
+
+# Modify biovolume_plot_200 — show x-axis labels
+biovolume_plot_200 <- biovolume_plot_200 +
+  scale_x_date(
+    limits = c(start_date, end_date),
+    date_breaks = "1 month",
+    date_labels = "%B"
+  ) +
+  labs(title = NULL, x = "Date") +
+  theme(
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.75)
+  )
+
+# Stack plots with patchwork
+final_plot <- chl_plot / biovolume_plot_200 + plot_layout(heights = c(1, 1))
+
+print(final_plot)
+```
+```{r combine dfs, include=FALSE}
+# Join data
+biovol_chl_df <- left_join(chl_data_df, biovolume_by_date, by = c("Date" = "Date"))
+
+# Inspect result
+print(biovol_chl_df)
+```
+```{r cbiovol and chl a scatterplot, include=FALSE}
+# How many unique dates/weeks in each?
+length(unique(chl_data_df$Date))
+length(unique(biovolume_by_date$Date))
+
+# Which dates/weeks are common?
+common_dates <- intersect(chl_data_df$Date, biovolume_by_date$Date)
+length(common_dates)
+print(common_dates)
+
+
+scatter_plot <- ggplot(biovol_chl_df, aes(x = avg_chl_a, y = biovol_conc)) +
+  geom_point() +
+  labs(
+    x = "Average Chlorophyll a Concentration (µg/L)",
+    y = "Total Biovolume per Volume",
+    title = "Scatterplot of Chlorophyll a vs Total Biovolume"
+  ) +
+  theme_minimal()
+print(scatter_plot)
+```
+```{r annual median zoop biovol using corrected df, include=FALSE}
+library(dplyr)
+library(lubridate)
+
+# Step 1: Filter and calculate median per year for Tow 200
+filtered_data <- biovolume_by_date %>%
+  filter(Tow == "200") %>%
+  mutate(Year = year(Date)) %>%
+  group_by(Year) %>%
+  summarise(median_bio_conc = median(biovol_conc, na.rm = TRUE))
+
+# Step 2: Calculate threshold as 5% above median
+annual_median_biovol_conc <- filtered_data %>%
+  mutate(threshold_bio = median_bio_conc * 1.05)
+
+# Add Year to original data
+biovol_conc_with_year <- biovolume_by_date %>%
+  mutate(Year = year(Date))
+
+# Join threshold info back to original data
+bio_with_threshold <- biovol_conc_with_year %>%
+  left_join(annual_median_biovol_conc %>% select(Year, threshold_bio), by = "Year")
+
+# Filter rows where actual biovol_conc exceeds threshold
+dates_above_threshold_bio <- bio_with_threshold %>%
+  filter(biovol_conc > threshold_bio)
+
+# View filtered results
+print(dates_above_threshold_bio %>% select(Date, Year, biovol_conc, threshold_bio))
+```
+```{r annual median biovol as a bar chart, include=FALSE}
+# Your barplot and setup from before
+bar_heights <- dates_above_threshold_bio$biovol_conc
+dates <- dates_above_threshold_bio$Date
+thresholds <- dates_above_threshold_bio$threshold_bio
+
+#formatted_dates <- format(Date, "%m-%d-%y")
+
+bp <- barplot(
+  height = bar_heights,
+  col = "skyblue",
+  ylim = c(0, 700),
+  ylab = "Biovolume (Individuals/m^3)",
+  main = NULL,
+  xaxt = "n",  # suppress x axis labels
+  cex.names = 0.8, # shrink space for names, optional
+  mgp = c(3, 1, 0) # axis label margins
+)
+
+segments(bp - 0.3, thresholds, bp + 0.3, thresholds, col = "red", lwd = 2)
+points(bp, thresholds, col = "red", pch = 19)
+lines(bp, thresholds, col = "red", lwd = 2)
+
+# Add rotated labels with adjusted y position and adj
+# Get current plot bottom y-limit (to place labels just below axis)
+y_axis_min <- par("usr")[3]
+
+# Adjust y offset (experiment with this value if needed)
+y_offset <- 0.5
+
+text(
+  x = bp,
+  y = y_axis_min - y_offset,
+  labels = dates,
+  srt = 45,
+  adj = c(1, 1),  # adj for x and y direction; (1,1) right and top aligned
+  xpd = TRUE,
+  cex = 0.8  # text size
+)
+
+legend(
+  "topright",                      # Position: can be "topright", "topleft", etc.
+  legend = "Annual Biovolume Threshold", # Label in the key
+  col = "red",                     # Color matches your line
+  lty = 1,                         # Line type (solid)
+  lwd = 2,                         # Line width
+  inset = 0.02                     # Optional: inset from the edge
+)
+
+```
+```{r annual median chl a, include=FALSE}
+annual_median_chl <- chl_data_df %>%
+  mutate(Year = year(Date)) %>%            # Extract year from Date
+  group_by(Year) %>%                       # Group by year
+  summarise(median_avg_chl_a = median(avg_chl_a, na.rm = TRUE))  # Calculate median ignoring NAs
+
+print(annual_median_chl)
+
+# Step 2: Calculate threshold per year (5% above median)
+annual_median_chl <- annual_median_chl %>%
+  mutate(threshold_chl = (median_avg_chl_a*0.05) + median_avg_chl_a)
+
+print(annual_median_chl)
+
+# Add Year to original data
+chl_data_with_year <- chl_data_df %>%
+  mutate(Year = year(Date))
+
+# Join annual median and threshold to original data
+chl_with_threshold <- chl_data_with_year %>%
+  left_join(
+    annual_median_chl %>%
+      mutate(threshold_chl = median_avg_chl_a * 1.05),  # threshold = median + 5%
+    by = "Year"
+  )
+
+# Filter dates where avg_chl_a exceeds the threshold
+dates_above_threshold_chl <- chl_with_threshold %>%
+  filter(avg_chl_a > threshold_chl)
+
+# View the filtered dates and values
+print(dates_above_threshold_chl %>% select(Date, Year, avg_chl_a, threshold_chl))
+```
+```{r annual median chl a as a bar chart, include=FALSE}
+# Your barplot and setup from before
+bar_heights <- dates_above_threshold_chl$avg_chl_a
+dates <- dates_above_threshold_chl$Date
+thresholds <- dates_above_threshold_chl$threshold_chl
+
+#formatted_dates <- format(Date, "%m-%d-%y")
+
+bp <- barplot(
+  height = bar_heights,
+  col = "skyblue",
+  ylim = c(0, 14),
+  ylab = "Average Chlorophyll a (μg/L)",
+  main = NULL,
+  xaxt = "n",  # suppress x axis labels
+  cex.names = 0.8, # shrink space for names, optional
+  mgp = c(3, 1, 0) # axis label margins
+)
+
+segments(bp - 0.3, thresholds, bp + 0.3, thresholds, col = "red", lwd = 2)
+points(bp, thresholds, col = "red", pch = 19)
+lines(bp, thresholds, col = "red", lwd = 2)
+
+# Add rotated labels with adjusted y position and adj
+# Get current plot bottom y-limit (to place labels just below axis)
+y_axis_min <- par("usr")[3]
+
+# Adjust y offset (experiment with this value if needed)
+y_offset <- 0.5
+
+text(
+  x = bp,
+  y = y_axis_min - y_offset,
+  labels = dates,
+  srt = 45,
+  adj = c(1, 1),  # adj for x and y direction; (1,1) right and top aligned
+  xpd = TRUE,
+  cex = 0.8  # text size
+)
+
+```
