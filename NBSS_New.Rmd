@@ -103,8 +103,8 @@ data1 <- NBSS(meso_nbss_mm_3,N=TRUE) #NBSS is in log form but Spectra is in mm^3
   
   print(meso_plot_mm_3)
   
-model1 <- lm(NBSS ~ log(Spectra), data = meso_straight_mm_3)
-summary(model1)
+model1_mm_3 <- lm(NBSS ~ log10(Spectra), data = meso_straight_mm_3)
+summary(model1_mm_3)
 
 
 meso_plot_mm_3 + geom_abline(intercept = model1$coefficients[1], slope = model1$coefficients[2], color = "red")

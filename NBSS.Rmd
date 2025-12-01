@@ -187,7 +187,7 @@ data1 <- NBSS(meso_nbss,N=TRUE) #setting normalized NBSS function as dataset "da
   
   print(meso_plot_esd)
   
-model1 <- lm(NBSS ~ log(Spectra), data = meso_straight_esd)
+model1 <- lm(NBSS ~ log10(Spectra), data = meso_straight_esd)
 summary(model1)
 
 
@@ -278,58 +278,54 @@ library(dplyr)
 library(ggplot2)
 library(lubridate)
 library(data.table)
+library(patchwork) 
 
-
-monthly_nbss <- biovolume_nbss %>%
-  filter(Tow == "200") %>%
-  mutate(Month = month(Date),
-         Year  = year(Date))
-data3 <- NBSS(monthly_nbss, N = TRUE)
-data3[,Spectra:=2*10**3*(Spectra*3/(4*pi))**(1/3)]
-min_mesh3 <- 350  # fixed lower limit (microns)
+plot_list <- list()
 model_list <- list()
-for (yy in sort(unique(monthly_nbss$Year))) {
-  
-  yearly_data <- monthly_nbss %>% filter(Year == yy)
-  
-  for (mm in sort(unique(yearly_data$Month))) {
-    
-    # Filter this year + month
-    month_data <- yearly_data %>% filter(Month == mm)
-    
-    # Run NBSS for this subset
-    data3 <- NBSS(month_data, N = TRUE)
-    data3 <- as.data.frame(data3)     # avoid data.table side-effects
-    
-    # Transform Spectra
-    data3$Spectra <- 2 * 10^3 * (data3$Spectra * 3 / (4 * pi))^(1/3) #microns
-    
-    # Determine maximum ESD for this month & year
-    max_mesh3 <- max(data3$Spectra, na.rm = TRUE)
-    monthly_straight <- data3
-    monthly_straight <- monthly_straight[monthly_straight$Spectra>700,] #selecting only the straight line
-  monthly_straight <- monthly_straight[monthly_straight$Spectra<3000,]
-model_name <- paste0("lm_", yy, "_", mm)
-    fit <- lm(NBSS ~ log10(Spectra), data = monthly_straight)
 
-    # Save model for later use
+plot_counter <- 1
+
+for (yy in sort(unique(monthly_nbss$Year))) {
+
+  yearly_data <- monthly_nbss %>% filter(Year == yy)
+
+  for (mm in sort(unique(yearly_data$Month))) {
+
+    month_data <- yearly_data %>% filter(Month == mm)
+    data3 <- NBSS(month_data, N = TRUE)
+    data3 <- as.data.frame(data3)
+
+    data3$Spectra <- 2 * 10^3 * (data3$Spectra * 3 / (4 * pi))^(1/3)
+
+    max_mesh3 <- max(data3$Spectra, na.rm = TRUE)
+
+    monthly_straight <- subset(data3, Spectra > 700 & Spectra < 3000)
+
+    model_name <- paste0("lm_", yy, "_", mm)
+    fit <- lm(NBSS ~ log10(Spectra), data = monthly_straight)
     model_list[[model_name]] <- fit
-    # Build the plot
+
+    # build plot
     p <- ggplot(monthly_straight, aes(x = Spectra, y = NBSS)) +
-      geom_point(data = data3, aes(Spectra, y = NBSS), color = "black")+
-    geom_point(color = "red") +
+      geom_point(data = data3, aes(Spectra, NBSS), color = "black") +
+      geom_point(color = "red") +
       scale_x_log10(limits = c(min_mesh3, max_mesh3)) +
       labs(
-        x = "Equivalent Spherical Diameter [µm]",
-        y = "NBSS log[mL/m³/mm³]",
-        title = paste("NBSS for", yy, "Month", mm)
+        x = NULL, #"Equivalent Spherical Diameter [µm]",
+        y = NULL, #"NBSS log[mL/m³/mm³]",
+        title = paste("NBSS", yy, "Month", mm)
       )
-    
-    # Print the plot
-    print(p)
+
+    # store plot instead of printing
+    plot_list[[plot_counter]] <- p
+    plot_counter <- plot_counter + 1
   }
 }
 
+combined_plot <- wrap_plots(plot_list, ncol = 4)
+combined_plot
+ggsave("combined_plot.png", plot = combined_plot, dpi = 300, width = 14, height = 12)
+browseURL("combined_plot.png")
 model_list[["lm_2024_5"]]
 model_list[["lm_2024_6"]]
 model_list[["lm_2024_7"]]
@@ -347,6 +343,59 @@ model_list[["lm_2025_6"]]
 model_list[["lm_2025_7"]]
 model_list[["lm_2025_8"]]
 model_list[["lm_2025_9"]]
+
+library(broom)   # for tidy() summaries
+
+# Create empty list to store results
+rows <- list()
+
+for (name in names(model_list)) {
+  
+  model <- model_list[[name]]
+  tidy_mod <- tidy(model)
+  glance_mod <- glance(model)
+  
+  # Extract year_month from name "lm_2024_5" → year = 2024, month = 5
+  parts <- unlist(strsplit(name, "_"))
+  year  <- as.numeric(parts[2])
+  month <- as.numeric(parts[3])
+  
+  # Get slope & intercept
+  intercept <- tidy_mod$estimate[ tidy_mod$term == "(Intercept)" ]
+  slope     <- tidy_mod$estimate[ tidy_mod$term != "(Intercept)" ]
+  
+  # Add row
+  rows[[name]] <- data.table(
+    model_name = name,
+    year = year,
+    month = month,
+    intercept = intercept,
+    slope = slope,
+    r_squared = glance_mod$r.squared,
+    adj_r_squared = glance_mod$adj.r.squared,
+    p_value = tidy_mod$p.value[ tidy_mod$term != "(Intercept)" ],
+    n = glance_mod$nobs
+  )
+}
+
+# Combine into one table
+meso_slopes_table <- rbindlist(rows)
+meso_slopes_table
+fwrite(meso_slopes_table, "NBSS_model_summary.csv")
+```
+
+```{r, NBSS slopes by month}
+slopes_data <- meso_slopes_table %>%
+  mutate(std = sd(slope, filter %in% month))
+meso_slopes <- ggplot(meso_slopes_table, aes(x = month, y = slope)) +
+      #geom_line() +
+      geom_point() +
+      labs(
+        x = "Month", 
+        y = "NBSS Slope" #"log(mL/m³/mm³)/[µm]",
+      ) +
+  theme_minimal() 
+print(meso_slopes)
 ```
 
 #Make NBSS for each season and month. Fit linear regression for all curves and compare. Use slope as a funciton of different environmental variables. Check the assumptions for SD gams. Make sure all components are normally distributed, look online to see what components I need to check and email Jerome. make boundaries 150% of mesh size. Each slope will be a value. Create data table with slope as y and month as x and graph to see how it is comparing.
