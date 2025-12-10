@@ -79,6 +79,8 @@ object_counts_og <- combined_df %>%
   )
 
 print(object_counts_og)
+#library(writexl)
+#write_xlsx(as.data.frame(object_counts_og), "object_counts_og_200.xlsx")
 ```
 ```{r stacked bar graphs by tow CORRECTED, include=FALSE}
 
@@ -153,7 +155,6 @@ object_counts_og_with_dates <- combined_df %>%
     .groups = "drop"
   )
 print(object_counts_og_with_dates)
-
 ```
 #Getting count data but excluding detritus categories so the ensuing graphs do not at to 100%
 ```{r getting count data for time series and keeping things in their date, include=FALSE}

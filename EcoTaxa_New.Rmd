@@ -208,7 +208,7 @@ Spherical_Volume <- ((4/3)*pi*(((combined_df$object_esd/2)*combined_df$process_p
 
 ```{r aggregates all pre-adjusted biovols by dateI TIHNK THIS IS CORRECT CHECK W TRICIA, include=FALSE}
 # Convert to Date format if needed
-Biovolume_df$Date <- as.Date(Biovolume_df$Date)
+#Biovolume_df$Date <- as.Date(Biovolume_df$Date)
 
 # Assuming combined_df already contains object_date and acq_sub_part
 Biovolume_df <- data.frame(

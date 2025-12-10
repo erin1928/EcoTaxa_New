@@ -192,12 +192,6 @@ q <- ggplot(data2, aes(x = Spectra, y = NBSS))+
 ```
 #Monthly NBSS
 ```{r Monthly NBSS meso}
-#max_mesh3 <- max(data3$Spectra, na.rm=TRUE)
-
-
-#jan_nbss <- ggplot(data3, aes(x = Spectra, y = NBSS)) +geom_point() +scale_x_log10(limits = c(min_mesh3, max_mesh3)) +labs(x = "Equivalent Spherical Diameter [µm]",y = "NBSS log[mL/m³/mm³]",title = paste("NBSS for Month", m))
-#print(jan_nbss) 
-
 library(dplyr)
 library(ggplot2)
 library(lubridate)
@@ -271,6 +265,44 @@ model_list[["lm_2025_6"]]
 model_list[["lm_2025_7"]]
 model_list[["lm_2025_8"]]
 model_list[["lm_2025_9"]]
+library(broom)   # for tidy() summaries
+
+# Create empty list to store results
+rows <- list()
+
+for (name in names(model_list)) {
+  
+  model <- model_list[[name]]
+  tidy_mod <- tidy(model)
+  glance_mod <- glance(model)
+  
+  # Extract year_month from name "lm_2024_5" → year = 2024, month = 5
+  parts <- unlist(strsplit(name, "_"))
+  year  <- as.numeric(parts[2])
+  month <- as.numeric(parts[3])
+  
+  # Get slope & intercept
+  intercept <- tidy_mod$estimate[ tidy_mod$term == "(Intercept)" ]
+  slope     <- tidy_mod$estimate[ tidy_mod$term != "(Intercept)" ]
+  
+  # Add row
+  rows[[name]] <- data.table(
+    model_name = name,
+    year = year,
+    month = month,
+    intercept = intercept,
+    slope = slope,
+    r_squared = glance_mod$r.squared,
+    adj_r_squared = glance_mod$adj.r.squared,
+    p_value = tidy_mod$p.value[ tidy_mod$term != "(Intercept)" ],
+    n = glance_mod$nobs
+  )
+}
+
+# Combine into one table
+meso_slopes_table <- rbindlist(rows)
+meso_slopes_table
+fwrite(meso_slopes_table, "NBSS_model_summary.csv")
 ```
 
 #Make NBSS for each season and month. Fit linear regression for all curves and compare. Use slope as a funciton of different environmental variables. Check the assumptions for SD gams. Make sure all components are normally distributed, look online to see what components I need to check and email Jerome. make boundaries 150% of mesh size. Each slope will be a value. Create data table with slope as y and month as x and graph to see how it is comparing.
