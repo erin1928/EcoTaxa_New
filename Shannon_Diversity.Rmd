@@ -114,6 +114,8 @@ tukey_df$Term <- rep(names(tukey_results), times = sapply(tukey_results, nrow))
 sig_tukey <- subset(tukey_df, `p adj` <= 0.05)
 
 sig_tukey[order(sig_tukey$`p adj`), ]
+
+
 ```
 #Let's make a biodiversity GAM
 ```{r making the GAM for 200 micron, include=FALSE}
@@ -246,3 +248,5 @@ plot_temp <- sd_box_plot_month +
 )
 print(plot_temp)
 ```
+
+

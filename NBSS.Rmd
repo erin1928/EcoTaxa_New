@@ -300,8 +300,6 @@ for (d in dates) {
 ```
 
 
-```{r, NBSS slopes by temperature}
-pca_data
-```
+
 #Make NBSS for each season and month. Fit linear regression for all curves and compare. Use slope as a funciton of different environmental variables. Check the assumptions for SD gams. Make sure all components are normally distributed, look online to see what components I need to check and email Jerome. make boundaries 150% of mesh size. Each slope will be a value. Create data table with slope as y and month as x and graph to see how it is comparing.
 
