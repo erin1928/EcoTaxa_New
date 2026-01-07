@@ -10,7 +10,7 @@ output: html_document
 library(dplyr)
 library(tidyr)
 
-combined_df_wide <- object_counts_og_with_dates_no_detritus %>%
+combined_df_wide <- object_counts_per_m3_by_date %>%
   pivot_wider(
     names_from  = object_annotation_category,
     values_from = n_cor,

@@ -171,7 +171,7 @@ combined_df$sample_tot_vol[combined_df$object_date == as.Date("2025-06-23") & as
 combined_df$sample_net_mesh[combined_df$sample_net_mesh == 99999] <- 700
 combined_df$sample_tot_vol[combined_df$sample_tot_vol == 99999.000000000000000] <- 1251846.943
 combined_df$sample_stationid[is.na(combined_df$sample_stationid)] <- "ram"
-#combined_df <- combined_df[!duplicated(combined_df), ] #gets rid of exact duplicates
+combined_df <- combined_df[!duplicated(combined_df), ] #gets rid of exact duplicates
 head(combined_df)
 
 # Get unique dates
@@ -301,9 +301,95 @@ biovolume_by_date %>%
   select(Date, biovol_conc)	
 ```
 
+```{r getting count data for time series excluding detritus and dividing by volume for biovolume graph in ind/m^3, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(forcats)
+
+object_counts_per_m3_by_date <- combined_df %>%
+  filter(
+    sample_net_mesh %in% c("200"),
+    sample_stationid %in% c("ram", "ram_island", "na", "NaN"),
+    !object_annotation_category %in% c("badfocus<other"), 
+    !object_annotation_category %in% c("Macroalgae"),
+    !grepl("^not-living>", object_annotation_hierarchy)) %>%
+  group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid, sample_tot_vol) %>%
+  summarise(
+    n = n(),
+    acq_sub_part = first(acq_sub_part), #This will multiple the n count value for each date with the correct splitting fraction
+    n_cor = n * acq_sub_part,
+    sample_tot_vol = first(sample_tot_vol),
+    n_cor_ind_m3 = (n_cor/(sample_tot_vol/1e6)), #normalizes individuals to individuals per m^3 (sample_tot_vol is in cm^3)
+    .groups = "drop"
+  ) %>%
+  # Combine selected Acartia categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Acartia", "Acartia hudsonica", "Acartia tonsa") ~ "Acartia spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Centropages categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Centropages", "Centropages hamatus", "Centropages typicus") ~ "Centropages spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected nauplii categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("unidentified-nauplii", "nauplii<Copepoda", "nauplii-molt") ~ "Copepod nauplii",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Pseudocalanus categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Pseudocalanus", "Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Paracalanus categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Paraocalanus", "Paracalanus sp.", "Paracalanus parvus", "	paracalanus+sp+eggs") ~ "Paracalanus spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  # Combine selected Eurytemora categories
+  mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs") ~ "Eurytemora spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+   mutate(
+    object_annotation_category = case_when(
+      object_annotation_category %in% c("Oithona sp.") ~ "Oithona spp.",
+      TRUE ~ object_annotation_category
+    )
+  ) %>%
+  group_by(object_date) %>%
+  summarise(
+    n_cor_ind_m3 = sum(n_cor_ind_m3, na.rm = TRUE),
+    .groups = "drop"
+  #group_by(object_annotation_category, sample_net_mesh, object_date) %>%
+  #summarise(
+    #n_cor_ind_m3 = sum(n_cor_ind_m3), #add it all up
+    #.groups = "drop"
+  )
+
+print(object_counts_per_m3_by_date)
+#library(writexl)
+#write_xlsx(as.data.frame(object_counts_og), "object_counts_og_200.xlsx")
+```
 ```{r Biovolume plots, include=FALSE}
+library(scales)
 # Plot for Tow = 200
-biovolume_plot_200 <- ggplot(data = biovolume_by_date %>% filter(Tow %in% as.numeric(200), Station %in% c("ram", "ram_island", "nan", "NaN") ), aes(x = Date, y = biovol_conc)) +
+biovolume_plot_200 <- ggplot(data = object_counts_per_m3_by_date #%>% filter(Tow %in% as.numeric(200), Station %in% c("ram", "ram_island", "nan", "NaN") )
+                             , aes(x = object_date, y = n_cor_ind_m3)) +
   geom_line(color = "black", size = 0.75) +  # Thicker line with size = 1.5
   geom_point()+
   #geom_smooth()+
@@ -325,7 +411,7 @@ biovolume_plot_200 <- ggplot(data = biovolume_by_date %>% filter(Tow %in% as.num
   labs(
     title = NULL,
     x = "Date",
-    y = expression("Biovolume (mL" ~ m^{-3} * ")")
+    y = expression("Biovolume (individuals" ~ m^{-3} * ")")
   ) +
   theme(panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.50))
 
@@ -364,6 +450,103 @@ browseURL("biovolume_plot_200.png")
 print(biovolume_plot_700)
 ggsave("biovolume_plot_700_2024.png", plot = biovolume_plot_700, dpi = 300)
 browseURL("biovolume_plot_200_2024.png")
+```
+
+```{r, splitting the axis}
+library(dplyr)
+
+# Normal range
+biomass_1 <- object_counts_per_m3_by_date %>%
+  filter(n_cor_ind_m3 <= 2e6)
+
+# Outlier range
+biomass_2 <- object_counts_per_m3_by_date %>%
+  filter(n_cor_ind_m3 > 2e6)
+library(ggplot2)
+
+# Plot 1: normal range
+p1 <- ggplot(biomass_1, aes(x = object_date, y = n_cor_ind_m3)) +
+  geom_line(color = "black", size = 0.75) +
+  geom_point() +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 22, hjust = 0.5),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", size = 0.5)
+  ) +
+  scale_x_date(
+    date_breaks = "1 month",
+    date_labels = "%B"
+  ) +
+  scale_y_continuous(limits = c(0, 2e6), labels = scales::label_number(scale = 1, accuracy = 1)) +
+  labs(x = "Date", y = expression("Biovolume (individuals" ~ m^{-3} * ")")) +
+  theme(panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.50))
+
+# Plot 2: outlier range
+p2 <- ggplot(biomass_2, aes(x = object_date, y = n_cor_ind_m3)) +
+  geom_line(color = "black", size = 0.75) +
+  geom_point() +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 22, hjust = 0.5),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", size = 0.5)
+  ) +
+  scale_x_date(
+    date_breaks = "1 month",
+    date_labels = "%B"
+  ) +
+  scale_y_continuous(limits = c(2e6, max(biomass_2$n_cor_ind_m3)), labels = scales::label_number(scale = 1, accuracy = 1)) +
+  labs(x = "Date", y = NULL) + # remove duplicate y-axis label
+  theme(panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.50))
+library(cowplot)
+
+plot_grid(p1, p2, ncol = 1, rel_heights = c(3, 1))  # 3:1 ratio for visual emphasis
+
+#install.packages("cowplot")
+```
+
+```{r biomass graph with scale breaks using ggbreak}
+library(ggplot2)
+#install.packages("ggbreak")
+library(ggbreak)
+library(scales)
+
+biomass_200 <- ggplot(object_counts_per_m3_by_date, 
+       aes(x = object_date, y = n_cor_ind_m3)) +
+  geom_point(color = "black", size = 0.75) +
+  geom_point() +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 22, hjust = 0.5),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", size = 0.5)
+  ) +
+  scale_x_date(
+    date_breaks = "1 month",
+    date_labels = "%B"
+  ) +
+  scale_y_continuous(labels = label_number(scale = 1, accuracy = 1)) +
+  labs(
+    x = "Date",
+    y = expression("Biovolume (individuals" ~ m^{-3} * ")")
+  ) +
+  ggbreak::scale_y_break(c(1.5e6, max(object_counts_per_m3_by_date$n_cor_ind_m3) + 1e6)) 
+print(biomass_200)
+ggsave("biomass_200.png", plot = biomass_200, dpi = 300)
+browseURL("biomass_200.png")
 ```
 ```{r, base R 200 biovolume plot}
 biovolume_200 <- biovolume_200[order(biovolume_200$Date), ]
