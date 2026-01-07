@@ -6,6 +6,18 @@ output: html_document
 ---
 
 #Start of the PCA: try factoring by season
+```{r, making combined_df wide}
+library(dplyr)
+library(tidyr)
+
+combined_df_wide <- object_counts_og_with_dates_no_detritus %>%
+  pivot_wider(
+    names_from  = object_annotation_category,
+    values_from = n_cor,
+    values_fill = 0
+  )
+print(combined_df_wide)
+```
 #Import and combine data
 ```{r import and combine dataframes, include=FALSE}
 pca_data <- read.csv("pca.csv")

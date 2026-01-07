@@ -49,8 +49,11 @@ force_char_cols <- c("sample_ship", "sample_stationid")
 
 # Read and coerce selected columns to character if they exist
 tsv_data <- lapply(tsv_files, function(file) {
-  df <- read.delim(file, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-  
+  df <- read.delim(file, header = TRUE, sep = "\t", stringsAsFactors = FALSE) %>%
+    mutate(
+      sample_net_type = as.character(sample_net_type)  # force consistency
+    )
+
   # Force listed columns to character if present
   for (col in force_char_cols) {
     if (col %in% names(df)) {
