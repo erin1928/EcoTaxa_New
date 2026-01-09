@@ -13,9 +13,10 @@ library(tidyr)
 combined_df_wide <- object_counts_per_m3_by_date %>%
   pivot_wider(
     names_from  = object_annotation_category,
-    values_from = n_cor,
+    values_from = n_cor_ind_m3,
     values_fill = 0
-  )
+  ) %>%
+  mutate(Date = object_date)
 print(combined_df_wide)
 ```
 #Import and combine data
@@ -23,21 +24,28 @@ print(combined_df_wide)
 pca_data <- read.csv("pca.csv")
 pca_data_df <- as.data.frame(pca_data)
 print(pca_data_df) 
-head(pca_data_df$Date, 10)
+#head(pca_data_df$Date, 10)
 pca_data_df$Date <- as.Date(pca_data_df$Date, format = "%m/%d/%Y")
+pca_data_df <- pca_data_df %>%
+  mutate(Date = update(Date, year = year(Date) + 2000)) %>% 
+         filter(Location == "Ram")
 
-biovolume_by_date_filtered <- biovolume_by_date %>%
-  filter(Tow == 200)
-pca_data_filtered <- pca_data_df %>%
-  filter(Location == "Ram")
+#biovolume_by_date_filtered <- biovolume_by_date %>%
+  #filter(Tow == 200)
+#pca_data_filtered <- pca_data_df %>%
+  #filter(Location == "Ram")
 
 # Join data
-pca_df <- left_join(pca_data_filtered, biovolume_by_date_filtered, by = c("Date" = "Date"))
+#pca_df <- left_join(pca_data_filtered, biovolume_by_date_filtered, by = c("Date" = "Date"))
 
 # Inspect result
-print(pca_df)
+#print(pca_df)
 
+#pca_df <- na.omit(pca_df)
+pca_df <- left_join(pca_data_df, combined_df_wide, by = c("Date" = "Date"))
 pca_df <- na.omit(pca_df)
+# Inspect result
+print(pca_df)
 ```
 
 ```{r pca plots, include=FALSE}

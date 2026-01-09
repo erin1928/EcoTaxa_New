@@ -14,7 +14,7 @@ library(forcats)
 object_counts_og <- combined_df %>%
   filter(
     sample_net_mesh %in% c("200"),
-    sample_stationid %in% c("ram", "ram_island", "na", "NaN"),
+    sample_stationid %in% c("ram", "ram_island", "nan", "NaN"),
     !grepl("^not-living>", object_annotation_hierarchy)
   ) %>%
   group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
@@ -112,7 +112,7 @@ print(stacked_bar_graph_og)
 object_counts_og_with_dates <- combined_df %>%
   filter(
     sample_net_mesh %in% c("200"),
-    sample_stationid %in% c("ram", "ram_island", "na", "NaN")
+    sample_stationid %in% c("ram", "ram_island", "nan", "NaN")
   ) %>%
   group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
   summarise(
@@ -162,7 +162,7 @@ print(object_counts_og_with_dates)
 object_counts_og_with_dates_no_detritus <- combined_df %>%
   filter(
     sample_net_mesh %in% c("200"),
-    sample_stationid %in% c("ram", "na", "NaN", "ram_island"),
+    sample_stationid %in% c("ram", "nan", "NaN", "ram_island"),
     !object_annotation_category %in% c("badfocus<other"), 
     !object_annotation_category %in% c("Macroalgae"),
     !grepl("^not-living>", object_annotation_hierarchy)) %>%  # Exclude "not-living>" and subcategories
@@ -244,7 +244,7 @@ print(relative_abundance_df)
 object_counts_detritus <- combined_df %>%
   filter(
     sample_net_mesh %in% c("200"),
-    sample_stationid %in% c("ram", "ram_island", "na", "NaN")) %>%
+    sample_stationid %in% c("ram", "ram_island", "nan", "NaN")) %>%
   group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
   summarise(
     n = n(),

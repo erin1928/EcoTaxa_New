@@ -14,18 +14,29 @@ library(ggplot2)
 
 # Instead of aggregating, keep the grouped data and calculate biovol_conc per row:
 biovolume_nbss <- Biovolume_df %>%
-  filter(!object_annotation_category %in% c("badfocus<other"), 
+  filter(
+    !object_annotation_category %in% c("badfocus<other"),
     !object_annotation_category %in% c("Macroalgae"),
-    !grepl("^not-living>", object_annotation_hierarchy)) %>%
-  group_by(Date, Fraction, Volume, Tow, Station) %>% # acq_min_mesh, acq_max_mesh
+    !grepl("^not-living>", object_annotation_hierarchy)
+  ) %>%
+  group_by(Date, Fraction, Volume, Tow, Station) %>%
   mutate(
     biovol_conc = if_else(
       Fraction == 1,
-      Spherical_volume / (Volume / 1e6), #cm^3/m^ or mL/m^3
-      (Spherical_volume * (Fraction / 2)) / (Volume / 1e6) #cm^3/m^ or mL/m^3
+      Spherical_volume / (Volume / 1e6),          # cm³/m³
+      (Spherical_volume * (Fraction / 2)) / (Volume / 1e6)  # apply splitting correction
+    )
+  ) %>%
+  # Exclude specific dates from the pipeline due to only doing 1 scan
+  mutate(
+    biovol_conc = if_else(
+      Date %in% as.Date(c("2024-08-06", "2025-10-27")),  # use correct column name
+      biovol_conc * 2,
+      biovol_conc
     )
   ) %>%
   ungroup()
+
 
 setDT(biovolume_nbss)
 #biovolume_nbss[, sample_id := as.character(Date)]
@@ -178,6 +189,7 @@ data1 <- NBSS(meso_nbss,N=TRUE) #setting normalized NBSS function as dataset "da
   meso_plot_esd <- ggplot(meso_straight_esd, aes(x = Spectra, y = NBSS))+ 
   geom_point(data = data1, aes(x = Spectra, y = NBSS), color = "black")+
     geom_point(color = "red") +
+  geom_line(data = pred_df, aes(x = Spectra, y = predicted_NBSS), color = "blue", size = 0.75) +
   scale_x_log10(limits = c(min_mesh1, max_mesh1)) +
   labs(
     x = "Equivalent Spherical Diameter [µm]",
@@ -190,7 +202,12 @@ data1 <- NBSS(meso_nbss,N=TRUE) #setting normalized NBSS function as dataset "da
 model1 <- lm(NBSS ~ log10(Spectra), data = meso_straight_esd)
 summary(model1)
 
+pred_df <- meso_straight_esd %>%
+  arrange(Spectra) %>%  # ensure the line is plotted correctly
+  mutate(predicted_NBSS = predict(model1, newdata = .))
 
+# Print plot
+print(meso_plot_esd)
 
 #ggsave("NBSS_meso.png", plot = meso_plot, dpi = 300)
 #browseURL("NBSS_meso.png")

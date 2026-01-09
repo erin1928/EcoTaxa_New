@@ -152,7 +152,9 @@ combined_df <- rbind(combined_df_1, combined_df_2)
 combined_df$object_date <- as.Date(combined_df$object_date)
 # Replace the date and other incorrect metadata moving forward
 combined_df$object_date[combined_df$object_date == as.Date("2024-01-24")] <- as.Date("2025-01-24")
-combined_df$object_date[combined_df$object_date == as.Date("2024-11-26")] <- as.Date("2024-12-04")
+combined_df$object_date[combined_df$object_date == as.Date("2024-11-26") & combined_df$acq_sub_part == 32] <- as.Date("2024-12-04")
+combined_df$object_date[combined_df$object_date == as.Date("2025-11-20") & combined_df$acq_sub_part == 32] <- as.Date("2025-10-27")
+combined_df$object_date[combined_df$object_date == as.Date("2024-06-13") & combined_df$sample_net_mesh == 200] <- as.Date("2024-06-27")
 combined_df$object_date[combined_df$object_date == as.Date("2024-02-05")] <- as.Date("2025-02-05")
 combined_df$object_date[combined_df$object_date == as.Date("2024-03-12")] <- as.Date("2025-03-12")
 combined_df$object_date[combined_df$object_date == as.Date("2024-08-01")] <- as.Date("2024-08-06")
@@ -162,6 +164,7 @@ combined_df$acq_sub_part[combined_df$object_date == as.Date("2025-05-07") & as.d
 combined_df$acq_sub_part[combined_df$object_date == as.Date("2025-04-22") & as.double(combined_df$acq_sub_part) == 1] <- 4
 combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-06-13") & as.double(combined_df$acq_sub_part) == 32] <- 64
 combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-07-30") & as.double(combined_df$acq_sub_part) == 32] <- 64
+combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-07-09") & combined_df$sample_net_mesh == "700" & as.double(combined_df$acq_sub_part) == 4] <- 16
 combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-07-30") & as.double(combined_df$acq_sub_part) == 1] <- 2
 combined_df$sample_tot_vol[combined_df$sample_tot_vol == 13099.126899999999296] <- 130099.13
 combined_df$sample_stationid[combined_df$object_date == as.Date("2025-06-17") & c(combined_df$sample_stationid) == "wood" & as.double(combined_df$acq_sub_part) == 1] <- "ram"
@@ -172,7 +175,8 @@ combined_df$sample_net_mesh[combined_df$sample_net_mesh == 99999] <- 700
 combined_df$sample_tot_vol[combined_df$sample_tot_vol == 99999.000000000000000] <- 1251846.943
 combined_df$sample_stationid[is.na(combined_df$sample_stationid)] <- "ram"
 combined_df <- combined_df[!duplicated(combined_df), ] #gets rid of exact duplicates
-head(combined_df)
+combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-09-03") & combined_df$sample_net_mesh == "200" & as.double(combined_df$acq_sub_part) == 4] <- 8
+
 
 # Get unique dates
 unique_dates <- unique(combined_df$object_date)
@@ -310,19 +314,32 @@ library(forcats)
 object_counts_per_m3_by_date <- combined_df %>%
   filter(
     sample_net_mesh %in% c("200"),
-    sample_stationid %in% c("ram", "ram_island", "na", "NaN"),
+    sample_stationid %in% c("ram", "ram_island", "nan"),
     !object_annotation_category %in% c("badfocus<other"), 
     !object_annotation_category %in% c("Macroalgae"),
     !grepl("^not-living>", object_annotation_hierarchy)) %>%
   group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid, sample_tot_vol) %>%
   summarise(
-    n = n(),
-    acq_sub_part = first(acq_sub_part), #This will multiple the n count value for each date with the correct splitting fraction
-    n_cor = n * acq_sub_part,
-    sample_tot_vol = first(sample_tot_vol),
-    n_cor_ind_m3 = (n_cor/(sample_tot_vol/1e6)), #normalizes individuals to individuals per m^3 (sample_tot_vol is in cm^3)
-    .groups = "drop"
-  ) %>%
+  n = n(),
+  acq_sub_part = first(acq_sub_part),     # splitting fraction
+  sample_tot_vol = first(sample_tot_vol), # cm^3
+  n_cor = if_else(
+    acq_sub_part == 1,              # scanned entire sample
+    n,                           # no correction
+    n * (acq_sub_part / 2)       # apply splitting correction
+  ),
+  n_cor_ind_m3 = n_cor / (sample_tot_vol / 1e6), # ind m^-3
+  .groups = "drop"
+) %>%
+#Exclude specific dates from pipeline due to only doing 1 scan
+mutate(
+  n_cor = if_else(
+    object_date %in% as.Date(c("2024-08-06", "2025-10-27")),
+    n_cor*2,      # keep existing value
+    n_cor
+    ),
+  n_cor_ind_m3 = n_cor / (sample_tot_vol / 1e6)
+) %>%
   # Combine selected Acartia categories
   mutate(
     object_annotation_category = case_when(
@@ -370,18 +387,37 @@ object_counts_per_m3_by_date <- combined_df %>%
       object_annotation_category %in% c("Oithona sp.") ~ "Oithona spp.",
       TRUE ~ object_annotation_category
     )
-  ) %>%
+  ) 
+  #This section is to modify the data table for the biomass chart (aggregate by date)
+object_counts_per_m3_by_date <- object_counts_per_m3_by_date %>%
   group_by(object_date) %>%
   summarise(
     n_cor_ind_m3 = sum(n_cor_ind_m3, na.rm = TRUE),
     .groups = "drop"
+  )
+   #This section is to modify the data table for the pca chart (aggregate by date and species)
   #group_by(object_annotation_category, sample_net_mesh, object_date) %>%
   #summarise(
     #n_cor_ind_m3 = sum(n_cor_ind_m3), #add it all up
-    #.groups = "drop"
-  )
+   # .groups = "drop"
+
 
 print(object_counts_per_m3_by_date)
+
+# Get unique dates
+unique_dates <- unique(combined_df$object_date)
+print(unique_dates)
+rm(unique_dates)
+
+# Get unique dates
+unique_station <- unique(combined_df$sample_stationid)
+print(unique_station)
+rm(unique_station)
+
+# Get unique dates
+unique_mesh <- unique(combined_df$sample_net_mesh)
+print(unique_mesh)
+rm(unique_mesh)
 #library(writexl)
 #write_xlsx(as.data.frame(object_counts_og), "object_counts_og_200.xlsx")
 ```
