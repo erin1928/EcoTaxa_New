@@ -390,17 +390,17 @@ mutate(
   ) 
   #This section is to modify the data table for the biomass chart (aggregate by date)
 object_counts_per_m3_by_date <- object_counts_per_m3_by_date %>%
-  group_by(object_date) %>%
+  #group_by(object_date) %>%
+  #summarise(
+    #n_cor_ind_m3 = sum(n_cor_ind_m3, na.rm = TRUE),
+    #.groups = "drop"
+  #)
+   #This section is to modify the data table for the pca chart (aggregate by date and species)
+  group_by(object_annotation_category, sample_net_mesh, object_date) %>%
   summarise(
-    n_cor_ind_m3 = sum(n_cor_ind_m3, na.rm = TRUE),
+    n_cor_ind_m3 = sum(n_cor_ind_m3), #add it all up
     .groups = "drop"
   )
-   #This section is to modify the data table for the pca chart (aggregate by date and species)
-  #group_by(object_annotation_category, sample_net_mesh, object_date) %>%
-  #summarise(
-    #n_cor_ind_m3 = sum(n_cor_ind_m3), #add it all up
-   # .groups = "drop"
-
 
 print(object_counts_per_m3_by_date)
 
