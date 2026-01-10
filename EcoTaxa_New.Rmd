@@ -409,15 +409,7 @@ unique_dates <- unique(combined_df$object_date)
 print(unique_dates)
 rm(unique_dates)
 
-# Get unique dates
-unique_station <- unique(combined_df$sample_stationid)
-print(unique_station)
-rm(unique_station)
 
-# Get unique dates
-unique_mesh <- unique(combined_df$sample_net_mesh)
-print(unique_mesh)
-rm(unique_mesh)
 #library(writexl)
 #write_xlsx(as.data.frame(object_counts_og), "object_counts_og_200.xlsx")
 ```

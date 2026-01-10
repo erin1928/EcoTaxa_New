@@ -53,7 +53,10 @@ head(biovolume_nbss)
 
 # Load the package
 library(writexl)
-
+# Get unique dates
+unique_dates <- unique(biovolume_nbss$Date)
+print(unique_dates)
+rm(unique_dates)
 # Export the data frame to Excel
 #write_xlsx(as.data.frame(biovolume_nbss), "biovolume_nbss.xlsx")
 ```
@@ -281,22 +284,23 @@ data3 <- NBSS(meso_nbss,N=TRUE) #setting normalized NBSS function as dataset "da
 library(dplyr)
 library(ggplot2)
 
-# Get all unique dates
 dates <- unique(biovolume_nbss$Date)
-
-# Create a list to store plots
 plots <- list()
 
 for (d in dates) {
   d_str <- format(as.Date(d), "%Y-%m-%d")
+  
   samples_nbss <- biovolume_nbss %>%
     filter(Tow == "200", Date == d)
+  
   data4 <- NBSS(samples_nbss, N = TRUE)
-
-  min_mesh4 <- min(data4$Spectra)
-  max_mesh4 <- max(data4$Spectra)
+  
+  min_mesh4 <- min(data4$Spectra, na.rm = TRUE)
+  max_mesh4 <- max(data4$Spectra, na.rm = TRUE)
+  
   samples_straight_esd <- data4 %>%
-    filter(Spectra > 1e-01, Spectra < 1e+01)
+    filter(Spectra > 1e-01, Spectra < 1e+01, !is.na(Spectra), !is.na(NBSS))
+  
   p <- ggplot(samples_straight_esd, aes(x = Spectra, y = NBSS)) +
     geom_point(data = data4, aes(x = Spectra, y = NBSS), color = "black") +
     geom_point(color = "red") +
@@ -306,11 +310,8 @@ for (d in dates) {
       y = "NBSS log[mL/m³/mm³]",
       title = paste("NBSS – Date:", d_str)
     )
-
-  # Save plot in list
+  
   plots[[as.character(d_str)]] <- p
-
-  # Print to screen
   print(p)
 }
 
