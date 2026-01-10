@@ -1,0 +1,114 @@
+---
+title: "NBSS.Weekly"
+author: "Erin Anderson"
+date: "2026-01-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+
+library(dplyr)
+library(ggplot2)
+library(broom)
+
+# Get all unique dates
+dates <- unique(biovolume_nbss$Date)
+
+# Lists to store plots and regression tables
+plots <- list()
+regression_tables <- list()
+
+for (d in dates) {
+  d_str <- format(as.Date(d), "%Y-%m-%d")
+  
+  # Subset for this date and Tow == 200
+  samples_nbss <- biovolume_nbss %>%
+    filter(Tow == "200", Date == d)
+  
+  # Compute NBSS
+  data4 <- NBSS(samples_nbss, N = TRUE)
+  
+  # Only keep "straight line" part
+  samples_straight_esd <- data4 %>%
+    filter(Spectra > 1e-01, Spectra < 1e+01, !is.na(Spectra), !is.na(NBSS))
+  
+  # Skip if no data
+  if(nrow(samples_straight_esd) == 0) next
+  
+  # Fit linear model NBSS ~ log10(Spectra)
+  model <- lm(NBSS ~ log10(Spectra), data = samples_straight_esd)
+  
+  # Extract coefficients and model stats
+  tidied <- tidy(model)
+  glanced <- glance(model)
+  
+  regression_tables[[d_str]] <- data.frame(
+    Date = d_str,
+    intercept = tidied$estimate[tidied$term == "(Intercept)"],
+    slope = tidied$estimate[tidied$term == "log10(Spectra)"],
+    slope_p_value = tidied$p.value[tidied$term == "log10(Spectra)"],
+    adj_r_squared = glanced$adj.r.squared
+  )
+  
+  # Plot
+  min_mesh4 <- min(data4$Spectra, na.rm = TRUE)
+  max_mesh4 <- max(data4$Spectra, na.rm = TRUE)
+  
+  p <- ggplot(samples_straight_esd, aes(x = Spectra, y = NBSS)) +
+    geom_point(data = data4, aes(x = Spectra, y = NBSS), color = "black") +
+    geom_point(color = "red") +
+    scale_x_log10(limits = c(min_mesh4, max_mesh4)) +
+    labs(
+      x = "Equivalent Spherical Diameter [µm]",
+      y = "NBSS log[mL/m³/mm³]",
+      title = paste("NBSS – Date:", d_str)
+    )
+  
+  plots[[d_str]] <- p
+  print(p)
+}
+
+# Combine all regression tables into a single dataframe
+nbss_regression_summary <- bind_rows(regression_tables)
+
+# View the final regression table
+print(nbss_regression_summary)
+
+```
+
+```{r slopes table}
+library(dplyr)
+library(ggplot2)
+
+# Make sure Date is in Date format
+nbss_regression_summary <- nbss_regression_summary %>%
+  mutate(Date = as.Date(Date))
+
+# Fit linear model: slope ~ Date
+slope_lm <- lm(slope ~ Date, data = nbss_regression_summary)
+
+# Create a dataframe of predicted values for plotting
+predicted <- nbss_regression_summary %>%
+  mutate(predicted_slope = predict(slope_lm, newdata = nbss_regression_summary))
+
+# Scatter plot with linear model line
+slope_plot <- ggplot(nbss_regression_summary, aes(x = Date, y = slope)) +
+  geom_point(color = "blue", size = 1) +
+  geom_line(data = predicted, aes(x = Date, y = predicted_slope), color = "red", size = 1) +
+  labs(
+    x = "Date",
+    y = "NBSS Slope",
+    title = "Temporal Trend of NBSS Slopes with Linear Fit"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Print the plot
+print(slope_plot)
+
+# Optional: view regression summary
+summary(slope_lm)
+
+```
