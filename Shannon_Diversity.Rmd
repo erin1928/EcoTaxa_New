@@ -24,7 +24,7 @@ shannon_diversity <- sd_df %>%
   group_by(object_date) %>%
   summarise(
     shannon_index = -sum(
-      (n_cor / sum(n_cor)) * log(n_cor / sum(n_cor))
+      (n_cor_ind_m3 / sum(n_cor_ind_m3)) * log(n_cor_ind_m3 / sum(n_cor_ind_m3))
     )
   )
 
@@ -98,7 +98,7 @@ TukeyHSD(anova_model)
 shannon_with_season$Month <- factor(shannon_with_season$Month, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
 anova_model_2 <- aov(shannon_index ~ Month, data = shannon_with_season)
 summary(anova_model_2)
-TukeyHSD(anova_model_2) #Significance between Sept and May, p = 0.0380236
+TukeyHSD(anova_model_2)
 
 anova_model_3 <- aov(shannon_index ~ Month * Year, data = shannon_with_season)
 summary(anova_model_3)
@@ -249,4 +249,37 @@ plot_temp <- sd_box_plot_month +
 print(plot_temp)
 ```
 
+```{r, linear models for SD}
+lm_model_chl <- lm(shannon_index ~ avg_chl_a, data = shannon_with_season_gam)
+summary(lm_model_chl) 
+#par(mfrow = c(2, 2))
+plot(lm_model_chl)
+#not significant 
 
+lm_model_temp <- lm(shannon_index ~ Water_Temp_Avg, data = shannon_with_season_gam)
+summary(lm_model_temp) 
+plot(lm_model_temp)
+#not significant 
+
+lm_model_sal <- lm(shannon_index ~ Salinity_Avg, data = shannon_with_season_gam)
+summary(lm_model_sal)
+plot(lm_model_sal)
+#not significant 
+
+lm_model_season <- lm(shannon_index ~ Season, data = shannon_with_season_gam)
+summary(lm_model_season)
+plot(lm_model_season)
+#not significant 
+
+lm_model_month <- lm(shannon_index ~ Month, data = shannon_with_season_gam)
+summary(lm_model_month)
+plot(lm_model_month)
+#not significant 
+
+lm_model_secchi <- lm(shannon_index ~ Secchi.depth, data = shannon_with_season_gam)
+summary(lm_model_secchi)
+plot(lm_model_secchi)
+#not significant 
+
+
+```

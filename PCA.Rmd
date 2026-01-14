@@ -47,13 +47,163 @@ pca_df <- na.omit(pca_df)
 # Inspect result
 print(pca_df)
 ```
+#Standardize data
+#Z-scores
+```{r hellinger, include=FALSE}
+library(data.table)
+library(vegan)
 
-```{r pca plots, include=FALSE}
+# Ensure data.table
+setDT(pca_df)
+
+# Identify numeric columns
+numeric_cols <- sapply(pca_df, is.numeric)
+numeric_colnames <- names(numeric_cols[numeric_cols])
+
+# Exclude environmental / metadata columns
+exclude_cols <- c(
+  "sample_net_mesh",
+  "Salinity_Min", "Salinity_Max", "Salinity_Avg",
+  "Water_Temp_Min", "Water_Temp_Max", "Water_Temp_Avg",
+  "Secchi.depth",
+  "STD",
+  "avg_chl_a",
+  "Month",
+  "Season", 
+  "Date"
+)
+
+# Community columns only
+community_cols <- setdiff(numeric_colnames, exclude_cols)
+
+# Subset community matrix
+community_df <- pca_df[, ..community_cols]
+
+# Hellinger transform
+community_hellinger <- decostand(
+  as.matrix(community_df),
+  method = "hellinger"
+)
+
+# Check for negative values
+any(community_df < 0, na.rm = TRUE)
+
+# Check for NAs
+anyNA(community_df)
+community_hellinger <- decostand(community_df, method = "hellinger")
+print(community_hellinger)
+
+community_hellinger <- as.data.table(community_hellinger)
+setnames(community_hellinger, community_cols)
+
+community_hellinger <- cbind(
+  pca_df[, ..exclude_cols],
+  community_hellinger
+)
+print(community_hellinger)
+```
+```{r pca plots NEW, include=FALSE}
+# ===============================
+# PCA with Hellinger community data + environmental vectors
+# ===============================
+
+library(data.table)
+library(vegan)
+library(ggplot2)
+
+# Ensure data.table
+setDT(community_hellinger)
+
+# -------------------------------
+# 1. Split data into roles
+# -------------------------------
+
+# Environmental variables (for envfit vectors)
+env_df <- as.data.frame(
+  community_hellinger[, ..exclude_cols] #looks good
+)
+
+# Community matrix (for PCA)
+comm_mat <- as.matrix(
+  community_hellinger[, ..community_cols]
+) #looks good
+
+# -------------------------------
+# 2. Run PCA (NO scaling after Hellinger)
+# -------------------------------
+
+pca <- prcomp(comm_mat, center = FALSE, scale. = FALSE)
+
+# -------------------------------
+# 3. PCA scores for plotting
+# -------------------------------
+
+scores_df <- as.data.frame(pca$x)
+scores_df <- cbind(scores_df, env_df)
+
+# Base PCA plot
+pca_plot <- ggplot(scores_df, aes(PC1, PC2)) +
+  geom_point(size = 3, alpha = 0.8) +
+  theme_minimal() +
+  labs(
+    x = paste0("PC1 (", round(100 * summary(pca)$importance[2,1], 1), "%)"),
+    y = paste0("PC2 (", round(100 * summary(pca)$importance[2,2], 1), "%)")
+  )
+
+# -------------------------------
+# 4. Fit environmental vectors
+# -------------------------------
+
+envfit_res <- envfit(pca, env_df, permutations = 999)
+
+vectors <- scores(envfit_res, display = "vectors")
+
+# -------------------------------
+# 5. Prepare vectors for plotting
+# -------------------------------
+
+arrow_scale <- 1  # adjust visually
+
+vectors_df <- as.data.frame(vectors * arrow_scale)
+vectors_df$env_var <- rownames(vectors_df)
+
+# -------------------------------
+# 6. Add vectors to PCA plot
+# -------------------------------
+
+pca_plot_new <- pca_plot +
+  geom_segment(
+    data = vectors_df,
+    aes(x = 0, y = 0, xend = PC1, yend = PC2),
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = "blue",
+    linewidth = 1
+  ) +
+  geom_text(
+    data = vectors_df,
+    aes(x = PC1 * 1.1, y = PC2 * 1.1, label = env_var),
+    color = "blue",
+    size = 4
+  )
+
+print(pca_plot_new)
+
+# -------------------------------
+# 7. Save and open plot
+# -------------------------------
+
+ggsave("pca_plot_new.png", plot = pca_plot_new, dpi = 300)
+browseURL("pca_plot_new.png")
+
+```
+```{r pca plots OLD, include=FALSE}
 library(vegan)
 library(ggfortify)
 library(FactoMineR)
 library(vcd)
 library(factoextra)
+library(data.table)
+
 pca_df <- pca_df %>%
   mutate(
     Month = month(Date),
@@ -69,7 +219,7 @@ pca_df <- pca_df %>%
 #how copes fall out by env factor
 # Replace 'data' with your data frame and adjust the column indices accordingly
 # Replace '1:4' with the indices of the fixed environmental factors you want to include
-pca_plot_1 <- fviz_pca_biplot(pca_result,
+pca_plot_1 <- fviz_pca_biplot(community_hellinger,
 
                          geom.ind = "point",
 
@@ -83,7 +233,7 @@ pca_plot_1 <- fviz_pca_biplot(pca_result,
 print(pca_plot_1)
 
 #how samples fall out by env factor
-pca_plot_2 <- fviz_pca_ind(pca_result,
+pca_plot_2 <- fviz_pca_ind(community_hellinger,
 
                             geom.ind = "point",
 
@@ -101,10 +251,10 @@ library(vegan)
 library(factoextra)
 
 # Suppose your environmental variables are columns in pca_df like this:
-env_vars <- pca_df[, c("Water_Temp_Avg", "Salinity_Avg", "Secchi.depth", "avg_chl_a", "biovol_conc", "Volume")]  # Replace with your numeric env variable names
+env_vars <- community_hellinger[, c("Water_Temp_Avg", "Salinity_Avg", "Secchi.depth", "avg_chl_a")]  # Replace with your numeric env variable names
 
-pca_scores <- as.data.frame(pca_result$x)
-pca_scores$Season <- pca_df$Season
+pca_scores <- as.data.frame(community_hellinger$x)
+#pca_scores$Season <- pca_df$Season
 
 ggplot(pca_scores, aes(x = PC1, y = PC2, color = Season, shape = Season)) +
   geom_point(size = 3, stroke = 1.1) +
@@ -112,10 +262,10 @@ ggplot(pca_scores, aes(x = PC1, y = PC2, color = Season, shape = Season)) +
   theme_minimal()
 
 # Fit env vectors onto PCA result
-envfit_result <- envfit(pca_result, env_vars)
+envfit_result <- envfit(community_hellinger, env_vars)
 
 pca_plot_3 <- fviz_pca_ind(
-  pca_result,
+  community_hellinger,
   geom.ind = "point",
   habillage = pca_df$Season,
   addEllipses = FALSE,
@@ -147,11 +297,11 @@ ggsave("pca_plot_4.png", plot = pca_plot_4, dpi = 300)
 browseURL("pca_plot_4.png")
 
 # Convert PCA scores to a data frame
-pca_scores <- as.data.frame(pca_result$x)
+pca_scores <- as.data.frame(community_hellinger$x)
 pca_scores$Season <- pca_df$Season
 
 # Calculate explained variance for axis labels
-eig <- pca_result$sdev^2 / sum(pca_result$sdev^2)
+eig <- community_hellinger$sdev^2 / sum(community_hellinger$sdev^2)
 
 # Create PCA plot
 pca_4 <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = Season, shape = Season)) +
@@ -197,65 +347,6 @@ ggsave("pca_plot_4_arrows.png", plot = pca_plot_4, dpi = 300)
 browseURL("pca_plot_4_arrows.png")
 
 ```
-#Standardize data
-#Z-scores
-```{r z-scores, include=FALSE}
-# Step 1: Identify numeric columns
-numeric_cols <- sapply(pca_df, is.numeric)
 
-# Step 2: Get column names of those numeric columns
-numeric_colnames <- names(numeric_cols[numeric_cols])
-
-exclude_cols <- c("Tow", "Salinity_Min", "Salinity_Max", "Water_Temp_Min", "Water_Temp_Max", "STD", "Fraction", "Biovolume_tot")
-
-# Step 4: Subset to only the numeric columns you want
-final_pca_columns <- setdiff(numeric_colnames, exclude_cols)
-
-# Step 5: Scale only the selected columns
-zscore_data <- scale(pca_df[, final_pca_columns])
-
-pca_result <- prcomp(zscore_data, center = TRUE, scale. = TRUE)
-# View principal components and explained variance
-summary(pca_result)
-# Shows how each variable contributes to each principal component
-pca_result$rotation
-# Scores of observations in PC space
-#head(pca_result$x)
-biplot(pca_result, scale = 0)
-
-
-zscore_df <- as.data.frame(zscore_data)
-numeric_cols <- sapply(zscore_df, is.numeric)
-sds <- apply(zscore_df[, numeric_cols], 2, sd)
-
-
-# See which are zero
-zero_var_cols <- names(sds[sds == 0])
-print(zero_var_cols)
-
-
-# After your PCA
-pca_result <- prcomp(zscore_data, center = TRUE, scale. = TRUE)
-
-# Inspect loadings (rotation)
-cat("Loadings (rotation):\n")
-print(head(pca_result$rotation, 10))
-
-# Inspect scores (x)
-cat("Scores (first few rows):\n")
-print(head(pca_result$x, 10))
-
-# Check a few more statistics
-cat("Standard deviations of PCs:\n")
-print(pca_result$sdev)
-
-cat("Variance explained per PC:\n")
-print((pca_result$sdev^2) / sum(pca_result$sdev^2))
-
-# If you try printing the full object, be mindful where the big numbers show up
-str(pca_result)
-
-summary(pca_result)
-```
 
 

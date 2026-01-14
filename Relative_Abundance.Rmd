@@ -15,7 +15,10 @@ object_counts_og <- combined_df %>%
   filter(
     sample_net_mesh %in% c("200"),
     sample_stationid %in% c("ram", "ram_island", "nan", "NaN"),
-    !grepl("^not-living>", object_annotation_hierarchy)
+    !grepl("^not-living>", object_annotation_hierarchy),
+    !object_annotation_category %in% c("badfocus<other"), 
+    !object_annotation_category %in% c("scales"),
+    !object_annotation_category %in% c("Macroalgae")
   ) %>%
   group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
   summarise(
@@ -114,7 +117,7 @@ object_counts_og_with_dates <- combined_df %>%
     sample_net_mesh %in% c("200"),
     sample_stationid %in% c("ram", "ram_island", "nan", "NaN")
   ) %>%
-  group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
+  group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid, sample_tot_vol) %>%
   summarise(
    n = n(),
     acq_sub_part = first(acq_sub_part),  # Get the first fraction per group
@@ -123,8 +126,15 @@ object_counts_og_with_dates <- combined_df %>%
       n,                    # If fraction == 1, no correction
       n * (acq_sub_part / 2)  # If fraction not 1, apply correction like in biovolume example
     ),
-    .groups = "drop"
+    .groups = "drop" 
   ) %>%
+  mutate(
+  n_cor = if_else(
+    object_date %in% as.Date(c("2024-08-06", "2025-10-27")),
+    n_cor*2,      # keep existing value
+    n_cor),
+  n_cor_ind_m3 = n_cor / (sample_tot_vol / 1e6)
+    ) %>%
   
   # Combine various categories as before
   mutate(
@@ -151,7 +161,7 @@ object_counts_og_with_dates <- combined_df %>%
   #Group by object_date too
   group_by(object_date, object_annotation_category, sample_net_mesh, acq_sub_part) %>%
   summarise(
-    n_cor = sum(n_cor),
+    n_cor_ind_m3 = sum(n_cor_ind_m3),
     .groups = "drop"
   )
 print(object_counts_og_with_dates)
@@ -164,9 +174,18 @@ object_counts_og_with_dates_no_detritus <- combined_df %>%
     sample_net_mesh %in% c("200"),
     sample_stationid %in% c("ram", "nan", "NaN", "ram_island"),
     !object_annotation_category %in% c("badfocus<other"), 
-    !object_annotation_category %in% c("Macroalgae"),
+    !object_annotation_category %in% c("scales"),
+    !object_annotation_category %in% c("bubble"),
+    !object_annotation_category %in% c("Macroalgae"), 
+    !object_annotation_category %in% c("Balanus<Cirripedia"),
+    !object_annotation_category %in% c("nauplii-molt"),
+    !object_annotation_category %in% c("Insecta"),
+    !object_annotation_category %in% c("ctenophore-freagments"),
+    !object_annotation_category %in% c("medusae"), 
+    !object_annotation_category %in% c("molt"), 
+    !object_annotation_category %in% c("egg-cluster"),
     !grepl("^not-living>", object_annotation_hierarchy)) %>%  # Exclude "not-living>" and subcategories
-  group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
+  group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid, sample_tot_vol) %>%
   summarise(
    n = n(),
     acq_sub_part = first(acq_sub_part),  # Get the first fraction per group
@@ -175,21 +194,28 @@ object_counts_og_with_dates_no_detritus <- combined_df %>%
       n,                    # If fraction == 1, no correction
       n * (acq_sub_part / 2)  # If fraction not 1, apply correction like in biovolume example
     ),
-    .groups = "drop"
+    .groups = "drop" 
   ) %>%
+  mutate(
+  n_cor = if_else(
+    object_date %in% as.Date(c("2024-08-06", "2025-10-27")),
+    n_cor*2,      # keep existing value
+    n_cor),
+  n_cor_ind_m3 = (n_cor / (sample_tot_vol / 1e6))*1.007
+    ) %>%
   
   # Combine various categories as before
   mutate(
     object_annotation_category = case_when(
       object_annotation_category %in% c("Acartia", "Acartia hudsonica", "Acartia tonsa") ~ "Acartia spp.",
       object_annotation_category %in% c("Centropages", "Centropages hamatus", "Centropages typicus") ~ "Centropages spp.",
-      object_annotation_category %in% c("unidentified-nauplii", "nauplii<Copepoda", "nauplii-molt") ~ "Copepod nauplii",
+      object_annotation_category %in% c("unidentified-nauplii", "nauplii<Copepoda") ~ "Copepod nauplii",
       object_annotation_category %in% c("Pseudocalanus", "Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
       object_annotation_category %in% c("Paraocalanus", "Paracalanus sp.", "Paracalanus parvus", "paracalanus+sp+eggs") ~ "Paracalanus spp.",
       object_annotation_category %in% c("Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs") ~ "Eurytemora spp.",
       object_annotation_category %in% c("Evadne", "evadne-nordmanni-multiple") ~ "Evadne spp.",
       object_annotation_category %in% c("Copepoda<Maxillopoda", "copepod shape", "badfocus<Copepoda", "multiple<Copepoda", "Microcalanus", "Microcalanus sp.", "Parvocalanus", "Temora   longicornis", "Tortanus sp.", "Calanoida", "Calanus sp.", "copepod sp.") ~ "Copepoda spp.",
-      object_annotation_category %in% c("Aurelia sp.", "Balanus<Cirripedia", "balanus-larvae", "Beroe cucumis", "Bivalvia larvae", "Chaetognatha", "Ctenophora sp.", "Decapoda", "Carcinus maenas", "Paguridae", "zoe<Decopoda", "Euphausiacea larvae", "Hydrozoa", "Obelia sp.", "Rathkea octopunctata", "Sarsia tubulosa", "Insecta", "Polychaeta", "polychaete larva", "ctenophore-freagments", "egg<other", "fish egg", "larval-fishes", "medusae", "multiple<other", "multiple+copepoda+detritus", "detritus-copepodo") ~ "Other zooplankton",
+      object_annotation_category %in% c("Aurelia sp.", "balanus-larvae", "Beroe cucumis", "Bivalvia larvae", "Chaetognatha", "Ctenophora sp.", "Decapoda", "Carcinus maenas", "Paguridae", "zoe<Decopoda", "Euphausiacea larvae", "Hydrozoa", "Obelia sp.", "Rathkea octopunctata", "Sarsia tubulosa", "Polychaeta", "polychaete larva", "egg<other", "fish egg", "larval-fishes", "medusae", "multiple<other", "multiple+copepoda+detritus", "detritus-copepodo") ~ "Other zooplankton",
       TRUE ~ object_annotation_category
     )
   ) %>%
@@ -202,12 +228,12 @@ object_counts_og_with_dates_no_detritus <- combined_df %>%
   #Group by object_date too
   group_by(object_date, object_annotation_category, sample_net_mesh, acq_sub_part) %>%
   summarise(
-    n_cor = sum(n_cor),
+    n_cor_ind_m3 = sum(n_cor_ind_m3),
     .groups = "drop"
   )
 print(object_counts_og_with_dates_no_detritus)
 
-unique(object_counts_og_with_dates_no_detritus$object_annotation_category)
+#unique(object_counts_og_with_dates_no_detritus$object_annotation_category)
 ```
 ```{r double checking the splitting fractions and dates to ensure everything looks correct, include=FALSE}
 # View result
@@ -483,16 +509,16 @@ calculate_top10_relative_abundance <- function(df, exclude_categories = NULL) {
     group_by(month, object_annotation_category, sample_net_mesh) %>%
     
     # Sum n_cor counts per month and species
-    summarise(total_n_cor = sum(n_cor, na.rm = TRUE), .groups = "drop") %>%
+    summarise(total_n_cor_ind_m3 = sum(n_cor_ind_m3, na.rm = TRUE), .groups = "drop") %>%
     
     # Calculate total n_cor per month for relative abundance
     group_by(month) %>%
     mutate(
-      relative_abundance = total_n_cor / sum(total_n_cor, na.rm = TRUE)
+      relative_abundance_ind_m3 = total_n_cor_ind_m3 / sum(total_n_cor_ind_m3, na.rm = TRUE)
     ) %>%
     
     # For each month, keep only top 10 species by relative abundance
-    arrange(month, desc(relative_abundance)) %>%
+    arrange(month, desc(relative_abundance_ind_m3)) %>%
     group_by(month) %>%
     slice_head(n = 10) %>%
     ungroup()
@@ -506,7 +532,7 @@ print(top10_relative_abundance_df)
 ```
 
 ```{r creating the stacked bar plots, include=FALSE}
-monthly_abundance_plots <- ggplot(top10_relative_abundance_df, aes(x = format(month, "%Y-%m"), y = relative_abundance, fill = object_annotation_category)) +
+monthly_abundance_plots <- ggplot(top10_relative_abundance_df, aes(x = format(month, "%Y-%m"), y = relative_abundance_ind_m3, fill = object_annotation_category)) +
   geom_bar(stat = "identity") +
   labs(
     x = "Month",
@@ -521,40 +547,47 @@ print(monthly_abundance_plots)
 ```
 #Writing the function and creating the bar plots to exclude detritus categories 
 ```{r function to get relative abundance for each month in the timeseries, include=FALSE}
+library(dplyr)
+library(lubridate)
+
 calculate_top10_relative_abundance_no_detritus <- function(df, exclude_categories = NULL) {
+  
+  # Default categories to exclude
+  if (is.null(exclude_categories)) {
+    exclude_categories <- c(
+      "badfocus<other", "Macroalgae", "scales", "detritus", "bubble", 
+      "ctenophore-freagments", "molt", "medusae", "fiber<detritus", 
+      "copepod carapace", "detritus-green", "detritus-organic", "shadow", 
+      "detritus-flat", "nauplii-molt", "Balanus<Cirripedia", "Insecta", "egg-cluster"
+    )
+  }
+  
   df %>%
-    # Filter out the excluded categories if provided
-    { if (!is.null(exclude_categories)) filter(., !object_annotation_category %in% exclude_categories) else . } %>%
+    # Remove unwanted categories
+    filter(!object_annotation_category %in% exclude_categories) %>%
     
-    # Extract year-month from object_date
+    # Extract month
     mutate(month = floor_date(as.Date(object_date), "month")) %>%
     
-    # Group by month, species, and sample_net_mesh (if you want to keep mesh grouping)
-    group_by(month, object_annotation_category, sample_net_mesh) %>%
+    # Sum counts by month and species using normalized count data
+    group_by(month, object_annotation_category) %>%
+    summarise(total_n_cor_ind_m3 = sum(n_cor_ind_m3), .groups = "drop") %>%
     
-    # Sum n_cor counts per month and species
-    summarise(total_n_cor = sum(n_cor, na.rm = TRUE), .groups = "drop") %>%
-    
-    # Calculate total n_cor per month for relative abundance
+    # Calculate relative abundance across all species
     group_by(month) %>%
-    mutate(
-      relative_abundance = total_n_cor / sum(total_n_cor, na.rm = TRUE)
-    ) %>%
+    mutate(relative_abundance_ind_m3 = total_n_cor_ind_m3 / sum(total_n_cor_ind_m3)) %>%
     
-    # For each month, keep only top 10 species by relative abundance
-    filter(object_annotation_category != "badfocus<other", 
-           object_annotation_category != "Macroalgae", 
-           object_annotation_category != "badfocus<other") %>%
-    arrange(month, desc(relative_abundance)) %>%
-    group_by(month) %>%
+    # Keep only top 10 species per month by relative abundance
+    arrange(month, desc(relative_abundance_ind_m3)) %>%
     slice_head(n = 10) %>%
+    
     ungroup()
 }
 
-
 top10_relative_abundance_df_no_detritus <- calculate_top10_relative_abundance_no_detritus(
-  object_counts_og_with_dates_no_detritus,
+  object_counts_og_with_dates_no_detritus
 )
+
 print(top10_relative_abundance_df_no_detritus)
 ```
 ```{r creating the stacked bar plots, include=FALSE}
@@ -575,7 +608,7 @@ species_colors <- c(
 
 monthly_abundance_plots_no_detritus <- ggplot(top10_relative_abundance_df_no_detritus, 
                                               aes(x = format(month, "%Y-%m"), 
-                                               y = relative_abundance, fill = object_annotation_category)) + 
+                                               y = relative_abundance_ind_m3, fill = object_annotation_category)) + 
   geom_bar(stat = "identity") +
   labs( x = "Month", y = "Relative Abundance (%)", fill = "Genus", title = NULL ) + 
   theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1))+ 

@@ -192,10 +192,11 @@ data1 <- NBSS(meso_nbss,N=TRUE) #setting normalized NBSS function as dataset "da
   meso_plot_esd <- ggplot(meso_straight_esd, aes(x = Spectra, y = NBSS))+ 
   geom_point(data = data1, aes(x = Spectra, y = NBSS), color = "black")+
     geom_point(color = "red") +
-  geom_line(data = pred_df, aes(x = Spectra, y = predicted_NBSS), color = "blue", size = 0.75) +
+  geom_line(data = pred_df, aes(x = Spectra, y = predicted_NBSS), color = "red", size = 0.75) +
   scale_x_log10(limits = c(min_mesh1, max_mesh1)) +
   labs(
-    x = "Equivalent Spherical Diameter [µm]",
+    x = "Volume (mm³)",
+   # x = "Equivalent Spherical Diameter [µm]",
     y = "NBSS log[mL/m³/mm³]",
     title = NULL
   )
@@ -212,8 +213,8 @@ pred_df <- meso_straight_esd %>%
 # Print plot
 print(meso_plot_esd)
 
-#ggsave("NBSS_meso.png", plot = meso_plot, dpi = 300)
-#browseURL("NBSS_meso.png")
+ggsave("NBSS_meso.png", plot = meso_plot_esd, dpi = 300)
+browseURL("NBSS_meso.png")
 #rm(model1)
 #rm(meso_plot)
 #rm(meso_nbss)

@@ -302,7 +302,8 @@ biovolume_by_date %>%
 biovolume_by_date %>%
   filter(Year == 2025, Tow == 200) %>%
   slice_min(biovol_conc, n = 3) %>%
-  select(Date, biovol_conc)	
+  select(Date, biovol_conc)
+
 ```
 
 ```{r getting count data for time series excluding detritus and dividing by volume for biovolume graph in ind/m^3, include=FALSE}
@@ -316,6 +317,7 @@ object_counts_per_m3_by_date <- combined_df %>%
     sample_net_mesh %in% c("200"),
     sample_stationid %in% c("ram", "ram_island", "nan"),
     !object_annotation_category %in% c("badfocus<other"), 
+    !object_annotation_category %in% c("scales"),
     !object_annotation_category %in% c("Macroalgae"),
     !grepl("^not-living>", object_annotation_hierarchy)) %>%
   group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid, sample_tot_vol) %>%
@@ -390,16 +392,16 @@ mutate(
   ) 
   #This section is to modify the data table for the biomass chart (aggregate by date)
 object_counts_per_m3_by_date <- object_counts_per_m3_by_date %>%
-  #group_by(object_date) %>%
-  #summarise(
-    #n_cor_ind_m3 = sum(n_cor_ind_m3, na.rm = TRUE),
-    #.groups = "drop"
+  group_by(object_date) %>%
+  summarise(
+    n_cor_ind_m3 = sum(n_cor_ind_m3)*1.007, #Correction Factor = 0.799%
+    .groups = "drop"
   #)
    #This section is to modify the data table for the pca chart (aggregate by date and species)
-  group_by(object_annotation_category, sample_net_mesh, object_date) %>%
-  summarise(
-    n_cor_ind_m3 = sum(n_cor_ind_m3), #add it all up
-    .groups = "drop"
+  #group_by(object_annotation_category, sample_net_mesh, object_date) %>%
+  #summarise(
+   # n_cor_ind_m3 = sum(n_cor_ind_m3), #add it all up
+    #.groups = "drop"
   )
 
 print(object_counts_per_m3_by_date)

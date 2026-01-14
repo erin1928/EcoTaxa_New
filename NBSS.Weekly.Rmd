@@ -78,7 +78,7 @@ print(nbss_regression_summary)
 
 ```
 
-```{r slopes table}
+```{r slopes by date}
 library(dplyr)
 library(ggplot2)
 
@@ -110,5 +110,138 @@ print(slope_plot)
 
 # Optional: view regression summary
 summary(slope_lm)
+ggsave("slope_plot.png", plot = slope_plot, dpi = 300)
+browseURL("slope_plot.png")
 
+```
+```{r slopes by secchi depth}
+library(dplyr)
+library(ggplot2)
+nbss_regression_summary_env <- merge(
+  env_df, 
+  nbss_regression_summary,
+  by = "Date",
+  all = TRUE  # use all=TRUE for a full outer join, or all=FALSE for inner join
+)
+nbss_regression_summary_env <- na.omit(nbss_regression_summary_env) 
+# Fit linear model: slope ~ Date
+slope_lm_secchi <- lm(slope ~ Secchi.depth, data = nbss_regression_summary_env)
+
+# Create a dataframe of predicted values for plotting
+predicted_secchi <- nbss_regression_summary_env %>%
+  mutate(predicted_slope = predict(slope_lm_secchi, newdata = nbss_regression_summary_env))
+
+# Scatter plot with linear model line
+slope_plot_secchi <- ggplot(nbss_regression_summary_env, aes(x = Secchi.depth, y = slope)) +
+  geom_point(color = "blue", size = 1) +
+  geom_line(data = predicted_secchi, aes(x = Secchi.depth, y = predicted_slope), color = "red", size = 1) +
+  labs(
+    x = "Secchi Depth",
+    y = "NBSS Slope",
+    title = "Temporal Trend of NBSS Slopes with Linear Fit"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Print the plot
+print(slope_plot_secchi)
+
+# Optional: view regression summary
+summary(slope_lm_secchi)
+ggsave("slope_plot_secchi.png", plot = slope_plot_secchi, dpi = 300)
+browseURL("slope_plot_secchi.png")
+
+```
+```{r slopes by chl a }
+library(dplyr)
+library(ggplot2)
+
+# Fit linear model: slope ~ Date
+slope_lm_chl <- lm(slope ~ avg_chl_a, data = nbss_regression_summary_env)
+
+# Create a dataframe of predicted values for plotting
+predicted_chl <- nbss_regression_summary_env %>%
+  mutate(predicted_slope = predict(slope_lm_chl, newdata = nbss_regression_summary_env))
+
+# Scatter plot with linear model line
+slope_plot_chl <- ggplot(nbss_regression_summary_env, aes(x = avg_chl_a, y = slope)) +
+  geom_point(color = "blue", size = 1) +
+  geom_line(data = predicted_chl, aes(x = avg_chl_a, y = predicted_slope), color = "red", size = 1) +
+  labs(
+    x = "Average Chl a",
+    y = "NBSS Slope",
+    title = NULL
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Print the plot
+print(slope_plot_chl)
+
+# Optional: view regression summary
+summary(slope_lm_chl)
+ggsave("slope_plot_chl.png", plot = slope_plot_chl, dpi = 300)
+browseURL("slope_plot_chl.png")
+```
+```{r slopes temp }
+library(dplyr)
+library(ggplot2)
+
+# Fit linear model: slope ~ Date
+slope_lm_temp <- lm(slope ~ Water_Temp_Avg, data = nbss_regression_summary_env)
+
+# Create a dataframe of predicted values for plotting
+predicted_temp <- nbss_regression_summary_env %>%
+  mutate(predicted_slope = predict(slope_lm_temp, newdata = nbss_regression_summary_env))
+
+# Scatter plot with linear model line
+slope_plot_temp <- ggplot(nbss_regression_summary_env, aes(x = Water_Temp_Avg, y = slope)) +
+  geom_point(color = "blue", size = 1) +
+  geom_line(data = predicted_temp, aes(x = Water_Temp_Avg, y = predicted_slope), color = "red", size = 1) +
+  labs(
+    x = "Average Water Temperature",
+    y = "NBSS Slope",
+    title = NULL
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Print the plot
+print(slope_plot_temp)
+
+# Optional: view regression summary
+summary(slope_lm_temp)
+ggsave("slope_plot_temp.png", plot = slope_plot_temp, dpi = 300)
+browseURL("slope_plot_temp.png")
+```
+```{r slopes salinity }
+library(dplyr)
+library(ggplot2)
+
+# Fit linear model: slope ~ Date
+slope_lm_sal <- lm(slope ~ Salinity_Avg, data = nbss_regression_summary_env)
+
+# Create a dataframe of predicted values for plotting
+predicted_temp <- nbss_regression_summary_env %>%
+  mutate(predicted_slope = predict(slope_lm_sal, newdata = nbss_regression_summary_env))
+
+# Scatter plot with linear model line
+slope_plot_sal <- ggplot(nbss_regression_summary_env, aes(x = Salinity_Avg, y = slope)) +
+  geom_point(color = "blue", size = 1) +
+  geom_line(data = predicted_temp, aes(x = Salinity_Avg, y = predicted_slope), color = "red", size = 1) +
+  labs(
+    x = "Average Salinity",
+    y = "NBSS Slope",
+    title = NULL
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Print the plot
+print(slope_plot_sal)
+
+# Optional: view regression summary
+summary(slope_lm_sal)
+ggsave("slope_plot_sal.png", plot = slope_plot_sal, dpi = 300)
+browseURL("slope_plot_sal.png")
 ```
