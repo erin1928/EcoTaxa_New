@@ -105,7 +105,7 @@ data1 <- NBSS(meso_nbss_mm_3,N=TRUE) #NBSS is in log form but Spectra is in mm^3
   
 model1_mm_3 <- lm(NBSS ~ log10(Spectra), data = meso_straight_mm_3)
 summary(model1_mm_3)
-
+plot(model1_mm_3)
 
 meso_plot_mm_3 + geom_abline(intercept = model1$coefficients[1], slope = model1$coefficients[2], color = "red")
 #ggsave("NBSS_meso.png", plot = meso_plot, dpi = 300)
@@ -139,6 +139,7 @@ nbss_data <- NBSS(biovolume_nbss,N=TRUE)
 
 m1 <- lm(NBSS ~ log10(Spectra), data = NBSS_straight)
 summary(m1)
+plot(m1)
 
 Q + geom_abline(intercept = m1$coefficients[1], slope = m1$coefficients[2], color = "red")
 

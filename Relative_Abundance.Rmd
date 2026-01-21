@@ -18,7 +18,9 @@ object_counts_og <- combined_df %>%
     !grepl("^not-living>", object_annotation_hierarchy),
     !object_annotation_category %in% c("badfocus<other"), 
     !object_annotation_category %in% c("scales"),
-    !object_annotation_category %in% c("Macroalgae")
+    !object_annotation_category %in% c("scale"),
+    !object_annotation_category %in% c("Macroalgae"), 
+    !object_annotation_category %in% c("medusae"),
   ) %>%
   group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid) %>%
   summarise(
@@ -175,6 +177,7 @@ object_counts_og_with_dates_no_detritus <- combined_df %>%
     sample_stationid %in% c("ram", "nan", "NaN", "ram_island"),
     !object_annotation_category %in% c("badfocus<other"), 
     !object_annotation_category %in% c("scales"),
+    !object_annotation_category %in% c("scale"),
     !object_annotation_category %in% c("bubble"),
     !object_annotation_category %in% c("Macroalgae"), 
     !object_annotation_category %in% c("Balanus<Cirripedia"),
@@ -207,24 +210,25 @@ object_counts_og_with_dates_no_detritus <- combined_df %>%
   # Combine various categories as before
   mutate(
     object_annotation_category = case_when(
-      object_annotation_category %in% c("Acartia", "Acartia hudsonica", "Acartia tonsa") ~ "Acartia spp.",
-      object_annotation_category %in% c("Centropages", "Centropages hamatus", "Centropages typicus") ~ "Centropages spp.",
+      #object_annotation_category %in% c("Acartia", "Acartia hudsonica", "Acartia tonsa") ~ "Acartia spp.",
+      #object_annotation_category %in% c("Podonidae") ~ "Podon spp.",
+      #object_annotation_category %in% c("Centropages", "Centropages hamatus", "Centropages typicus") ~ "Centropages spp.",
       object_annotation_category %in% c("unidentified-nauplii", "nauplii<Copepoda") ~ "Copepod nauplii",
-      object_annotation_category %in% c("Pseudocalanus", "Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
-      object_annotation_category %in% c("Paraocalanus", "Paracalanus sp.", "Paracalanus parvus", "paracalanus+sp+eggs") ~ "Paracalanus spp.",
-      object_annotation_category %in% c("Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs") ~ "Eurytemora spp.",
-      object_annotation_category %in% c("Evadne", "evadne-nordmanni-multiple") ~ "Evadne spp.",
-      object_annotation_category %in% c("Copepoda<Maxillopoda", "copepod shape", "badfocus<Copepoda", "multiple<Copepoda", "Microcalanus", "Microcalanus sp.", "Parvocalanus", "Temora   longicornis", "Tortanus sp.", "Calanoida", "Calanus sp.", "copepod sp.") ~ "Copepoda spp.",
-      object_annotation_category %in% c("Aurelia sp.", "balanus-larvae", "Beroe cucumis", "Bivalvia larvae", "Chaetognatha", "Ctenophora sp.", "Decapoda", "Carcinus maenas", "Paguridae", "zoe<Decopoda", "Euphausiacea larvae", "Hydrozoa", "Obelia sp.", "Rathkea octopunctata", "Sarsia tubulosa", "Polychaeta", "polychaete larva", "egg<other", "fish egg", "larval-fishes", "medusae", "multiple<other", "multiple+copepoda+detritus", "detritus-copepodo") ~ "Other zooplankton",
+     # object_annotation_category %in% c("Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
+     # object_annotation_category %in% c("Paracalanus sp.", "Paracalanus parvus", "paracalanus+sp+eggs") ~ "Paracalanus spp.",
+     # object_annotation_category %in% c("Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs") ~ "Eurytemora spp.",
+     # object_annotation_category %in% c("Evadne", "evadne-nordmanni-multiple") ~ "Evadne spp.",
+      object_annotation_category %in% c("Evadne", "evadne-nordmanni-multiple", "Podonidae") ~ "Cladocera spp.",
+      object_annotation_category %in% c("Copepoda<Maxillopoda", "copepod shape", "badfocus<Copepoda", "multiple<Copepoda", "Microcalanus", "Microcalanus sp.", "Parvocalanus", "Temora longicornis", "Tortanus sp.", "Calanoida", "Calanus sp.", "copepod sp.", "Paracalanus sp.", "Paracalanus parvus", "paracalanus+sp+eggs", "Centropages", "Centropages hamatus", "Centropages typicus", "Acartia", "Acartia hudsonica", "Acartia tonsa", "Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs", "Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs", "Oithona sp.", "Metridia", "Labidocera") ~ "Copepoda spp.",
+      object_annotation_category %in% c("Aurelia sp.", "balanus-larvae", "Beroe cucumis", "Bivalvia larvae", "Chaetognatha", "Ctenophora sp.", "Decapoda", "Carcinus maenas", "Paguridae", "zoe<Decopoda", "Euphausiacea larvae", "Hydrozoa", "Obelia sp.", "Rathkea octopunctata", "Sarsia tubulosa", "Polychaeta", "polychaete larva", "egg<other", "fish egg", "larval-fishes", "multiple<other", "multiple+copepoda+detritus", "detritus-copepodo", "Leuckartiara", "Caligus", "Upogebia", "Crangon", "Anapagurus", "Harpacticoida", "Euphausiidae", "Gammarus", "Podocoryna") ~ "Other zooplankton",
       TRUE ~ object_annotation_category
     )
   ) %>%
-   mutate(
-    object_annotation_category = case_when(
-      object_annotation_category %in% c("Oithona sp.") ~ "Oithona spp.",
-      TRUE ~ object_annotation_category
-    )
-  ) %>%
+  # mutate(
+    #object_annotation_category = case_when(object_annotation_category %in% c("Oithona sp.") ~ "Oithona spp.",
+     # TRUE ~ object_annotation_category
+   # )
+ # ) %>%
   #Group by object_date too
   group_by(object_date, object_annotation_category, sample_net_mesh, acq_sub_part) %>%
   summarise(
@@ -558,7 +562,7 @@ calculate_top10_relative_abundance_no_detritus <- function(df, exclude_categorie
       "badfocus<other", "Macroalgae", "scales", "detritus", "bubble", 
       "ctenophore-freagments", "molt", "medusae", "fiber<detritus", 
       "copepod carapace", "detritus-green", "detritus-organic", "shadow", 
-      "detritus-flat", "nauplii-molt", "Balanus<Cirripedia", "Insecta", "egg-cluster"
+      "detritus-flat", "nauplii-molt", "Balanus<Cirripedia", "Insecta", "egg-cluster", "scale"
     )
   }
   
@@ -578,10 +582,14 @@ calculate_top10_relative_abundance_no_detritus <- function(df, exclude_categorie
     mutate(relative_abundance_ind_m3 = total_n_cor_ind_m3 / sum(total_n_cor_ind_m3)) %>%
     
     # Keep only top 10 species per month by relative abundance
-    arrange(month, desc(relative_abundance_ind_m3)) %>%
-    slice_head(n = 10) %>%
+    arrange(month, desc(relative_abundance_ind_m3)) #%>%
+    #slice_head(n = 10) %>%
     
-    ungroup()
+    #ungroup()
+    #mutate(
+    #object_annotation_category =
+      f#orcats::fct_reorder(object_annotation_category, relative_abundance_ind_m3)
+  #)
 }
 
 top10_relative_abundance_df_no_detritus <- calculate_top10_relative_abundance_no_detritus(
@@ -598,13 +606,13 @@ species_colors <- c(
   "Copepod nauplii"    = "#3a55b4", 
   "Oithona spp."       = "#537dc6", 
   "Paracalanus spp."   = "#6caddf", 
-  "Podonidae"          = "#7fcff1", 
+  "Podon spp."         = "#7fcff1", 
   "Psuedocalanus spp." = "#8cd9ff", 
   "Gastropoda larvae"  = "#4d8fb0", 
   "Evadne spp."        = "#64b48b", 
   "Eurytemora spp."    = "#81de76", 
   "Centropages spp."   = "#a7ed84", 
-  "Acartia spp."       = "#ccff8c" ) 
+  "Cladocera spp."       = "#ccff8c" ) 
 
 monthly_abundance_plots_no_detritus <- ggplot(top10_relative_abundance_df_no_detritus, 
                                               aes(x = format(month, "%Y-%m"), 
@@ -615,6 +623,68 @@ monthly_abundance_plots_no_detritus <- ggplot(top10_relative_abundance_df_no_det
   scale_fill_manual(values = species_colors) 
 
 print(monthly_abundance_plots_no_detritus)
+ggsave("monthly_abundance_plots_no_detritus.png", plot = monthly_abundance_plots_no_detritus, dpi = 300)
+browseURL("monthly_abundance_plots_no_detritus.png")
+
+
+##====CLEANED====
+
+species_colors5 <- c(
+  "Cladocera spp."        = "#1A1A1A",  # near-black
+  "Copepoda spp."       = "#4D4D4D",  # dark grey
+  "Copepod nauplii"         = "#8C8C8C",  # mid grey (replaces white)
+  "Other zooplankton"     = "#C7C7C7",  # light grey
+  "Gastropoda larvae"     = "white"   # muted blue accent
+)
+monthly_abundance_plots_no_detritus_2 <-
+  ggplot(
+    top10_relative_abundance_df_no_detritus,
+    aes(
+      x = month,
+      y = relative_abundance_ind_m3,
+      fill = object_annotation_category
+    )
+  ) +
+  geom_col(width = 25.0, color = "black", linewidth = 0.5) +
+  
+  scale_x_date(
+    date_labels = "%b\n%Y",
+    date_breaks = "2 months",
+    expand = c(0.01, 0.01)
+  ) +
+  
+  scale_y_continuous(
+    labels = scales::percent_format(accuracy = 1),
+    expand = c(0, 0)
+  ) +
+  
+  scale_fill_manual(values = species_colors5) +
+  
+  labs(
+    x = NULL,
+    y = "Relative abundance (%)",
+    fill = NULL
+  ) +
+  
+  theme_classic(base_size = 11) +
+  theme(
+    axis.text.x = element_text(size = 9),
+    axis.text.y = element_text(size = 9),
+    axis.title.y = element_text(size = 11),
+    
+    legend.position = "right",
+    legend.text = element_text(size = 9),
+    legend.key.height = unit(0.5, "lines"),
+    
+    panel.border = element_blank(),
+    axis.line = element_line(linewidth = 0.4),
+    
+    plot.margin = margin(5.5, 5.5, 5.5, 5.5)
+  )
+
+print(monthly_abundance_plots_no_detritus_2)
+ggsave("monthly_abundance_plots_no_detritus_2.png", plot = monthly_abundance_plots_no_detritus_2, dpi = 300)
+browseURL("monthly_abundance_plots_no_detritus_2.png")
 ```
 #Calculating relative abundance for each season and graphing using the bins created by Dr. T with no detritus
 ```{r relative abundance calculations per season, include=FALSE}
@@ -639,21 +709,31 @@ calculate_top10_relative_abundance_season_no_detritus <- function(df, exclude_ca
     # Group by season, species, and sample_net_mesh if needed
     group_by(season, object_annotation_category, sample_net_mesh, year) %>%
     # Sum n_cor counts per season and species
-    summarise(total_n_cor = sum(n_cor, na.rm = TRUE), .groups = "drop") %>%
+    summarise(total_n_cor_ind_m3 = sum(n_cor_ind_m3, na.rm = TRUE), .groups = "drop") %>%
     
     # Calculate total n_cor per season for relative abundance
     group_by(season, year) %>%
     mutate(
-      relative_abundance = total_n_cor / sum(total_n_cor, na.rm = TRUE)
+      relative_abundance_m3 = total_n_cor_ind_m3 / sum(total_n_cor_ind_m3, na.rm = TRUE)
     ) %>%
     
     # For each season, keep only top 10 species by relative abundance
-    filter(object_annotation_category != "badfocus<other",
-           object_annotation_category != "Macroalgae") %>%
-    arrange(season, desc(relative_abundance)) %>%
-    group_by(season, year) %>%
+    filter(!object_annotation_category %in% c("badfocus<other"), 
+    !object_annotation_category %in% c("scales"),
+    !object_annotation_category %in% c("scale"),
+    !object_annotation_category %in% c("bubble"),
+    !object_annotation_category %in% c("Macroalgae"), 
+    !object_annotation_category %in% c("Balanus<Cirripedia"),
+    !object_annotation_category %in% c("nauplii-molt"),
+    !object_annotation_category %in% c("Insecta"),
+    !object_annotation_category %in% c("ctenophore-freagments"),
+    !object_annotation_category %in% c("medusae"), 
+    !object_annotation_category %in% c("molt"), 
+    !object_annotation_category %in% c("egg-cluster")) %>%
+    arrange(season, desc(relative_abundance_m3)) %>%
+    group_by(season, year) #%>%
     #slice_head(n = 10) %>%
-    ungroup()
+    #ungroup()
 }
 
 top10_relative_abundance_season_df_no_detritus <- calculate_top10_relative_abundance_season_no_detritus(
@@ -661,6 +741,10 @@ top10_relative_abundance_season_df_no_detritus <- calculate_top10_relative_abund
 )
 
 print(top10_relative_abundance_season_df_no_detritus)
+top10_relative_abundance_season_df_no_detritus<- 
+  top10_relative_abundance_season_df_no_detritus %>%
+  mutate(abundance_percentage = 100 * relative_abundance_m3)
+
 ```
 ```{r relative abundance plots per season with no detritus and other category, include=FALSE}
 library(ggplot2)
@@ -671,7 +755,7 @@ species_colors <- c(
   "Copepod nauplii"     = "#3a55b4",
   "Oithona spp."        = "#537dc6",
   "Paracalanus spp."    = "#6caddf",
-  "Podonidae"           = "#7fcff1",
+  "Podon spp."          = "#7fcff1",
   "Psuedocalanus spp."  = "#8cd9ff",
   "Gastropoda larvae"   = "#4d8fb0",
   "Evadne spp."         = "#64b48b",
@@ -680,7 +764,7 @@ species_colors <- c(
   "Acartia spp."        = "#ccff8c"
 )
 seasonal_abundance_plot <- ggplot(top10_relative_abundance_season_df_no_detritus,
-                                 aes(x = factor(season, levels = c("Winter", "Spring", "Summer", "Fall")), y = relative_abundance, fill = object_annotation_category)) +
+                                 aes(x = factor(season, levels = c("Winter", "Spring", "Summer", "Fall")), y = relative_abundance_m3, fill = object_annotation_category)) +
   facet_wrap(~ year) +
   geom_bar(stat = "identity") +
   labs(
@@ -700,7 +784,95 @@ seasonal_abundance_plot <- ggplot(top10_relative_abundance_season_df_no_detritus
 print(seasonal_abundance_plot)
 ggsave("seasonal_abundance_plot.png", plot = seasonal_abundance_plot, dpi = 300)
 browseURL("seasonal_abundance_plot.png")
+
+
+#===CLEANED===
+species_colors5 <- c(
+  "Cladocera spp."        = "#1A1A1A",  # near-black
+  "Copepoda spp."       = "#4D4D4D",  # dark grey
+  "Copepod nauplii"         = "#8C8C8C",  # mid grey (replaces white)
+  "Other zooplankton"     = "#C7C7C7",  # light grey
+  "Gastropoda larvae"     = "white"   # muted blue accent
+)
+seasonal_abundance_plot_2 <-
+  ggplot(
+    top10_relative_abundance_season_df_no_detritus,
+    aes(
+      x = factor(season, levels = c("Winter", "Spring", "Summer", "Fall")),
+      y = relative_abundance_m3,
+      fill = object_annotation_category
+    )
+  ) +
+  facet_wrap(~ year) +
+  geom_col(width = 0.85, color = "black", linewidth = 0.25) +
+  
+  scale_y_continuous(
+    labels = scales::percent_format(accuracy = 1),
+    expand = c(0, 0)
+  ) +
+  
+  scale_fill_manual(values = species_colors5, drop = FALSE) +
+  
+  labs(
+    x = NULL,
+    y = "Relative abundance (%)",
+    fill = NULL
+  ) +
+  
+  theme_classic(base_size = 11) +
+  theme(
+    axis.text.x = element_text(size = 9),
+    axis.text.y = element_text(size = 9),
+    axis.title.y = element_text(size = 11),
+
+    legend.position = "right",
+    legend.text = element_text(size = 9),
+    legend.key.height = unit(0.5, "lines"),
+
+    strip.background = element_blank(),
+    strip.text = element_text(size = 10),
+
+    axis.line = element_line(linewidth = 0.4),
+    plot.margin = margin(5.5, 5.5, 5.5, 5.5)
+  )
+
+print(seasonal_abundance_plot_2)
+ggsave("seasonal_abundance_plot_2.png", plot = seasonal_abundance_plot_2, dpi = 300)
+browseURL("seasonal_abundance_plot_2.png")
 ```
+
+#GAMs for aundances
+```{r, GAM by month}
+library(mgcv)
+pca_df_ra <- pca_df %>% mutate(month = floor_date(as.Date(Date), "month"))
+# Join with season info (assuming season is the same for each object_date)
+ra_gam <- pca_df_ra %>%
+  left_join(pca_gam %>% select(month, avg_chl_a, Water_Temp_Avg, Salinity_Avg, Secchi.depth) %>% distinct(), by = "month") %>%
+  mutate(Year = year(Date), 
+         Month = month(Date), 
+         Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"))
+
+ra_gam <- na.omit(ra_gam)
+# Fit model
+gam_1 <- gam(relative_abundance_m3 ~ s(avg_chl_a) + s(Water_Temp_Avg) + s(Salinity_Avg) +s(Secchi.depth) +s(Month), family = gaussian(), data = shannon_with_season_gam)
+
+# Summary
+summary(gam_1)
+
+gam_2 <- gam(shannon_index ~ s(Water_Temp_Avg, k = 4) + s(Secchi.depth, k =4), family = gaussian(), data = shannon_with_season_gam) #Second GAM with only the significant response variables
+summary(gam_2) #Std. error = 0,03436, R^2 (adj) = 0.137, Dev. explained = 17.3%
+# Plot
+plot(gam_2, pages = 1, rug = TRUE)
+
+
+# Diagnostics
+gam.check(gam_1)
+```
+
 #Calculating relative abundance for each season and graphing using the bins created by Dr. T
 ```{r relative abundance calculations per season, include=FALSE}
 library(dplyr)

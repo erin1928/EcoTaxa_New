@@ -35,56 +35,116 @@ shannon_with_season <- shannon_diversity %>%
   left_join(sd_df %>% select(object_date, Season, Month) %>% distinct(), by = "object_date") %>%
   mutate(Year = year(object_date))
 
-# Plot Shannon diversity by season
 sd_box_plot <- ggplot(
   shannon_with_season,
-  aes(x = factor(Season, levels = c("Winter", "Spring", "Summer", "Fall")),
-      y = shannon_index,
-      fill = Season)
+  aes(
+    x = factor(Season, levels = c("Winter", "Spring", "Summer", "Fall")),
+    y = shannon_index
+  )
 ) +
-  geom_boxplot(alpha = 0.7) +
-  geom_jitter(width = 0.2, alpha = 0.5) +
+  # White boxes with black outlines, thicker median line
+  geom_boxplot(
+    width = 0.5,
+    outlier.shape = NA,          # don't plot boxplot outliers (we'll show all points)
+    fill = "white",
+    color = "black",
+    linewidth = 0.5
+  ) +
+  stat_boxplot(
+  geom = "errorbar",
+  width = 0.25,
+  linewidth = 0.8
+  ) +
+  # Colored points (like the example)
+  geom_jitter(
+    aes(color = Season),
+    width = 0.15,
+    height = 0,
+    size = 2.2,
+    alpha = 0.95
+  ) +
   facet_wrap(~ Year) +
   labs(
     title = "Shannon Diversity Index by Season",
-    x = "Season",
+    x = NULL,
     y = "Shannon Diversity Index"
   ) +
-  scale_fill_manual(
+  # Use color scale (not fill) for points
+  scale_color_manual(
     values = c(
-      "Winter" = "#C77CFF",  
-      "Spring" = "#7CAE00",  
-      "Summer" = "#00BFC4",  
-      "Fall"   = "#F8766D"  
+      "Winter" = "#C77CFF",
+      "Spring" = "#7CAE00",
+      "Summer" = "#00BFC4",
+      "Fall"   = "#F8766D"
     )
   ) +
-  theme_minimal() +
-  theme(legend.position = "right")
+  # Classic look: no grey background, minimal grid
+  theme_classic(base_size = 13) +
+  theme(
+    legend.position = "none",          # example image doesn't show a legend
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    axis.line = element_line(color = "black", linewidth = 0.5)
+  )
+
 
 print(sd_box_plot)
 ggsave("sd_box_plot.png", plot = sd_box_plot, dpi = 300)
 browseURL("sd_box_plot.png")
 
 # Plot Shannon diversity by month
-sd_box_plot_month <- ggplot(shannon_with_season, 
-                            aes(x = Month, y = shannon_index, fill = Season)) +
-  geom_boxplot(alpha = 0.7) +
-  geom_jitter(width = 0.2, alpha = 0.5) +
+sd_box_plot_month <- ggplot(
+  shannon_with_season,
+  aes(
+    x = factor(Month, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12")),
+    y = shannon_index
+  )
+) +
+  # White boxes with black outlines, thicker median line
+  geom_boxplot(
+    width = 0.5,
+    outlier.shape = NA,          # don't plot boxplot outliers (we'll show all points)
+    fill = "white",
+    color = "black",
+    linewidth = 0.4
+  ) +
+  stat_boxplot(
+  geom = "errorbar",
+  width = 0.25,
+  linewidth = 0.5
+  ) +
+  # Colored points
+  geom_jitter(
+    aes(color = Season),
+    width = 0.15,
+    height = 0,
+    size = 2.2,
+    alpha = 0.95
+  ) +
   facet_wrap(~ Year) +
-  labs(title = "Shannon Diversity Index by Month",
-       x = "Month",
-       y = "Shannon Diversity Index") +
-  scale_fill_manual(
+  labs(
+    title = "Shannon Diversity Index by Month",
+    x = NULL,
+    y = "Shannon Diversity Index"
+  ) +
+  # Use color scale for points
+  scale_color_manual(
     values = c(
-      "Winter" = "#C77CFF",  
-      "Spring" = "#7CAE00",  
-      "Summer" = "#00BFC4",  
-      "Fall"   = "#F8766D"  
+      "Winter" = "#C77CFF",
+      "Spring" = "#7CAE00",
+      "Summer" = "#00BFC4",
+      "Fall"   = "#F8766D"
     )
   ) +
-  theme_minimal() +
-  theme(legend.position = "none") +
-  scale_x_discrete(drop = TRUE)
+  # no grey background, minimal grid
+  theme_classic(base_size = 13) +
+  theme(
+    legend.position = "Right",          # legend
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    axis.line = element_line(color = "black", linewidth = 0.5)
+  )
+
 
 print(sd_box_plot_month)
 ggsave("sd_box_plot_month.png", plot = sd_box_plot_month, dpi = 300)
@@ -143,8 +203,18 @@ shannon_with_season_gam <- shannon_diversity %>%
 
 shannon_with_season_gam <- na.omit(shannon_with_season_gam)
 
+## Rex's work
+
+hist(shannon_with_season_gam$shannon_index)
+
+model_1 <- aov(shannon_index ~ avg_chl_a + Water_Temp_Avg + log(Salinity_Avg) + sqrt(Secchi.depth), data = shannon_with_season_gam)
+
+qqnorm(residuals(model_1))
+qqline(residuals(model_1), col = "red", lwd = 2)
+summary(model_1)
+
 # Fit model
-gam_1 <- gam(shannon_index ~ s(avg_chl_a) + s(Water_Temp_Avg) + s(Salinity_Avg) +s(Secchi.depth) +s(Month), family = gaussian(), data = shannon_with_season_gam)
+gam_1 <- gam(shannon_index ~ s(log(avg_chl_a)) + s(Water_Temp_Avg) + s(log(Salinity_Avg)) +s(sqrt(Secchi.depth)) +s(Month), family = gaussian(), data = shannon_with_season_gam)
 
 # Summary
 summary(gam_1)
@@ -250,7 +320,7 @@ print(plot_temp)
 ```
 
 ```{r, linear models for SD}
-lm_model_chl <- lm(shannon_index ~ avg_chl_a, data = shannon_with_season_gam)
+lm_model_chl <- lm(shannon_index ~ log(avg_chl_a), data = shannon_with_season_gam)
 summary(lm_model_chl) 
 #par(mfrow = c(2, 2))
 plot(lm_model_chl)
@@ -261,7 +331,7 @@ summary(lm_model_temp)
 plot(lm_model_temp)
 #not significant 
 
-lm_model_sal <- lm(shannon_index ~ Salinity_Avg, data = shannon_with_season_gam)
+lm_model_sal <- lm(shannon_index ~ log(Salinity_Avg), data = shannon_with_season_gam)
 summary(lm_model_sal)
 plot(lm_model_sal)
 #not significant 
@@ -276,10 +346,14 @@ summary(lm_model_month)
 plot(lm_model_month)
 #not significant 
 
-lm_model_secchi <- lm(shannon_index ~ Secchi.depth, data = shannon_with_season_gam)
+lm_model_secchi <- lm(shannon_index ~ sqrt(Secchi.depth), data = shannon_with_season_gam)
 summary(lm_model_secchi)
 plot(lm_model_secchi)
 #not significant 
 
+lm_model_combo <- lm(shannon_index ~ (sqrt(Secchi.depth)) + (Season) + (Month) + (log(Salinity_Avg)) + (Water_Temp_Avg) + (log(avg_chl_a)), data = shannon_with_season_gam)
+summary(lm_model_combo)
 
+lm_model_combo_raw <- lm(shannon_index ~ (Secchi.depth) + (Season) + (Month) + (Salinity_Avg) + (Water_Temp_Avg) + (avg_chl_a), data = shannon_with_season_gam)
+summary(lm_model_combo_raw)
 ```

@@ -319,6 +319,8 @@ object_counts_per_m3_by_date <- combined_df %>%
     !object_annotation_category %in% c("badfocus<other"), 
     !object_annotation_category %in% c("scales"),
     !object_annotation_category %in% c("Macroalgae"),
+    !object_annotation_category %in% c("scale"),
+    !object_annotation_category %in% c("medusae"),
     !grepl("^not-living>", object_annotation_hierarchy)) %>%
   group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid, sample_tot_vol) %>%
   summarise(
@@ -373,7 +375,7 @@ mutate(
   # Combine selected Paracalanus categories
   mutate(
     object_annotation_category = case_when(
-      object_annotation_category %in% c("Paraocalanus", "Paracalanus sp.", "Paracalanus parvus", "	paracalanus+sp+eggs") ~ "Paracalanus spp.",
+      object_annotation_category %in% c("Paracalanus sp.", "Paracalanus parvus", "	paracalanus+sp+eggs") ~ "Paracalanus spp.",
       TRUE ~ object_annotation_category
     )
   ) %>%
@@ -392,20 +394,22 @@ mutate(
   ) 
   #This section is to modify the data table for the biomass chart (aggregate by date)
 object_counts_per_m3_by_date <- object_counts_per_m3_by_date %>%
-  group_by(object_date) %>%
-  summarise(
-    n_cor_ind_m3 = sum(n_cor_ind_m3)*1.007, #Correction Factor = 0.799%
-    .groups = "drop"
+ # group_by(object_date) %>%
+  #summarise(
+   # n_cor_ind_m3 = sum(n_cor_ind_m3)*1.007, #Correction Factor = 0.799%
+   # .groups = "drop"
   #)
    #This section is to modify the data table for the pca chart (aggregate by date and species)
-  #group_by(object_annotation_category, sample_net_mesh, object_date) %>%
-  #summarise(
-   # n_cor_ind_m3 = sum(n_cor_ind_m3), #add it all up
-    #.groups = "drop"
+  group_by(object_annotation_category, sample_net_mesh, object_date) %>%
+  summarise(
+   n_cor_ind_m3 = sum(n_cor_ind_m3), #add it all up
+    .groups = "drop"
   )
 
-print(object_counts_per_m3_by_date)
 
+object_counts_per_m3_by_date <- object_counts_per_m3_by_date %>% mutate(log_abundance_ind_m3 = log(n_cor_ind_m3))
+
+print(object_counts_per_m3_by_date)
 # Get unique dates
 unique_dates <- unique(combined_df$object_date)
 print(unique_dates)
@@ -418,32 +422,44 @@ rm(unique_dates)
 ```{r Biovolume plots, include=FALSE}
 library(scales)
 # Plot for Tow = 200
-biovolume_plot_200 <- ggplot(data = object_counts_per_m3_by_date #%>% filter(Tow %in% as.numeric(200), Station %in% c("ram", "ram_island", "nan", "NaN") )
-                             , aes(x = object_date, y = n_cor_ind_m3)) +
-  geom_line(color = "black", size = 0.75) +  # Thicker line with size = 1.5
-  geom_point()+
-  #geom_smooth()+
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
-    axis.text.y = element_text(size = 12),
-    axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16),
-    plot.title = element_text(size = 22, hjust = 0.5),
-    panel.grid = element_blank(),  # Remove all grid lines
-    axis.line = element_line(color = "black", size = 0.5)  # Add axis lines
+library(ggplot2)
+library(scales)
+
+biovolume_plot_200 <- ggplot(
+  data = object_counts_per_m3_by_date,
+  aes(x = object_date, y = n_cor_ind_m3)
+) +
+  geom_line(color = "black", linewidth = 0.7) +
+  geom_point(color = "black", size = 1.6) +
+
+  scale_x_date(
+  date_breaks  = "2 months",   # labeled ticks
+  date_labels  = "%b",     # month + year
+  minor_breaks = "1 month"     # unlabeled monthly ticks
   ) +
-    scale_x_date(
-    date_breaks = "1 month",       # Breaks at 1-month intervals
-    date_labels = "%B"             # Labels months as abbreviated names (e.g., "Jan", "Feb", "Mar")
+
+  scale_y_continuous(
+    breaks = scales::pretty_breaks(n = 5),
+    labels = label_number(accuracy = 0.1),
+    expand = expansion(mult = c(0.02, 0.05))
   ) +
-  scale_y_continuous(labels = label_number(scale = 1, accuracy = 1)) +
+
   labs(
     title = NULL,
     x = "Date",
-    y = expression("Biovolume (individuals" ~ m^{-3} * ")")
+    y = expression("Abundance (individuals " * m^{-3} * ")")
   ) +
-  theme(panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.50))
+
+  theme_classic(base_size = 13) +
+  theme(
+    axis.title = element_text(face = "bold", size = 15),
+    axis.text = element_text(color = "black", size = 12),
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    axis.ticks.length = unit(0.22, "cm"),
+    axis.line = element_line(linewidth = 0.7),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.7)
+  )
+
 
 # Plot for Tow = 700
 cutoff <- as.Date("2024-11-18")   # <-- your chosen stop date
@@ -475,12 +491,121 @@ biovolume_plot_700 <- ggplot(data = biovolume_by_date %>% filter(Tow %in% as.num
   theme(panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.50))
 # Print both plots
 print(biovolume_plot_200)
-ggsave("biovolume_plot_200.png", plot = biovolume_plot_200, dpi = 300)
+ggsave("biovolume_plot_200.png",
+  biovolume_plot_200,
+  width = 10,
+  height = 12,   # <-- key: more height for 3 rows
+  dpi = 600,
+  bg = "white"
+)
 browseURL("biovolume_plot_200.png")
 print(biovolume_plot_700)
 ggsave("biovolume_plot_700_2024.png", plot = biovolume_plot_700, dpi = 300)
 browseURL("biovolume_plot_200_2024.png")
 ```
+```{r, seasonal abundance boxplots}
+object_counts_per_m3_by_date <- object_counts_per_m3_by_date %>%
+ mutate(
+    Month = month(object_date),
+    Year = year(object_date),
+    Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"
+    )
+  )
+print(object_counts_per_m3_by_date)
+
+# Plot abundance  by season
+abundance_box_plot <- ggplot(
+  object_counts_per_m3_by_date,
+  aes(x = factor(Season, levels = c("Winter", "Spring", "Summer", "Fall")),
+      y = log_abundance_ind_m3,
+      fill = Season)
+) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5) +
+  facet_wrap(~ Year) +
+  labs(
+    title = NULL,
+    x = "Season",
+    y = expression("Abundance (individuals" ~ m^{-3} * ")")
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Winter" = "#C77CFF",  
+      "Spring" = "#7CAE00",  
+      "Summer" = "#00BFC4",  
+      "Fall"   = "#F8766D"  
+    )
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+print(abundance_box_plot)
+ggsave("abundance_box_plot_season.png", plot = abundance_box_plot, dpi = 300)
+browseURL("abundance_box_plot_season.png")
+
+# Plot abundance  by month
+abundance_box_plot_month <- ggplot(
+  object_counts_per_m3_by_date,
+  aes(x = factor(Month, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12")),
+      y = log_abundance_ind_m3,
+      fill = Season)
+) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5) +
+  facet_wrap(~ Year) +
+  labs(
+    title = NULL,
+    x = "Month",
+    y = expression("Abundance (individuals" ~ m^{-3} * ")")
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Winter" = "#C77CFF",  
+      "Spring" = "#7CAE00",  
+      "Summer" = "#00BFC4",  
+      "Fall"   = "#F8766D"  
+    )
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+print(abundance_box_plot_month)
+ggsave("abundance_box_plot_month.png", plot = abundance_box_plot_month, dpi = 300)
+browseURL("abundance_box_plot_month.png")
+```
+```{r, gams for abundance}
+library(mgcv)
+
+object_counts_per_m3_by_date_gam <- object_counts_per_m3_by_date %>% mutate (Date = object_date)
+# Join with season info (assuming season is the same for each object_date)
+abundance_gam <- object_counts_per_m3_by_date_gam %>%
+  left_join(pca_df %>% select(Date, avg_chl_a, Water_Temp_Avg, Salinity_Avg, Secchi.depth) %>% distinct(), by = "Date") %>%
+  mutate(Year = year(Date), 
+         Month = month(Date), 
+         Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"))
+
+abundance_gam <- na.omit(abundance_gam)
+# Fit model
+gam_1 <- gam(log_abundance_ind_m3 ~ s(avg_chl_a) + s(Water_Temp_Avg) + s(Salinity_Avg) +s(Secchi.depth, k = 8), family = gaussian(), data = abundance_gam)
+
+# Summary
+summary(gam_1)
+
+plot(gam_1, pages = 1, rug = TRUE)
+
+
+# Diagnostics
+gam.check(gam_1)
+```
+
 
 ```{r, splitting the axis}
 library(dplyr)

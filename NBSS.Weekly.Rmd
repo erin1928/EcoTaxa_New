@@ -8,9 +8,6 @@ output: html_document
 ```{r setup, include=FALSE}
 library(dplyr)
 library(ggplot2)
-
-library(dplyr)
-library(ggplot2)
 library(broom)
 
 # Get all unique dates
@@ -76,6 +73,17 @@ nbss_regression_summary <- bind_rows(regression_tables)
 # View the final regression table
 print(nbss_regression_summary)
 
+#check histogram of slope vlaues
+nbss_slopes_hist <- ggplot(nbss_regression_summary, aes(x = slope)) +
+  geom_histogram(bins = 30, fill = "grey70", color = "black") +
+  labs(
+    x = "NBSS slope",
+    y = "Count",
+    title = "Distribution of NBSS slopes"
+  ) +
+  theme_minimal()
+
+#print(nbss_slopes_hist) #normally distributed
 ```
 
 ```{r slopes by date}
@@ -106,37 +114,131 @@ slope_plot <- ggplot(nbss_regression_summary, aes(x = Date, y = slope)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 # Print the plot
-print(slope_plot)
+print(slope_plot) 
+
 
 # Optional: view regression summary
 summary(slope_lm)
+plot(slope_lm)
 ggsave("slope_plot.png", plot = slope_plot, dpi = 300)
 browseURL("slope_plot.png")
+
+##======CLEANED UP AND ADDED 95% CI BASED ON PREDICATED NBSS SLOPE AT EACH DATE POINT=====
+
+# Create prediction grid (smooth line + CI)
+predicted_2 <- data.frame(
+  Date = seq(
+    min(nbss_regression_summary$Date, na.rm = TRUE),
+    max(nbss_regression_summary$Date, na.rm = TRUE),
+    length.out = 100
+  )
+)
+print(predicted_2)
+# Get fitted values + confidence intervals
+predicted_ci_1 <- predict(
+  slope_lm,
+  newdata = predicted_2,
+  interval = "confidence"
+)
+print(predicted_ci_1)
+
+# Bind predictions to dataframe (names: fit, lwr, upr)
+predicted_2 <- cbind(predicted_2, predicted_ci_1)
+
+slope_plot_2 <- ggplot(
+  nbss_regression_summary,
+  aes(x = Date, y = slope)
+) +
+  geom_point(color = "black", size = 1.5, alpha = 0.7) +
+
+  # Confidence interval ribbon
+  geom_ribbon(
+    data = predicted_2,
+    aes(
+      x = Date,
+      ymin = lwr,
+      ymax = upr
+    ),
+    inherit.aes = FALSE,
+    fill = "grey70",
+    alpha = 0.35
+  ) +
+
+  # Fitted line
+  geom_line(
+    data = predicted_2,
+    aes(
+      x = Date,
+      y = fit
+    ),
+    color = "black",
+    linewidth = 1.1
+  ) +
+
+ scale_y_continuous(
+    breaks = scales::pretty_breaks(n = 4)
+  ) +
+  coord_cartesian(ylim = c(-2.0, NA)
+  ) +
+scale_x_date(
+    date_breaks = "2 month",
+    date_labels = "%b"
+  ) +
+  labs(
+    x = "Date",
+    y = "NBSS Slope",
+    title = NULL
+  ) +
+
+  theme_classic(base_size = 13) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(), 
+    plot.background  = element_blank(), 
+    axis.title = element_text(face = "bold"),
+    axis.text  = element_text(color = "black"), 
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  )
+
+print(slope_plot_2)
+
+ggsave("slope_plot_2.png", plot = slope_plot_2, dpi = 300)
+browseURL("slope_plot_2.png")
 
 ```
 ```{r slopes by secchi depth}
 library(dplyr)
 library(ggplot2)
 nbss_regression_summary_env <- merge(
-  env_df, 
+  pca_data_df, 
   nbss_regression_summary,
   by = "Date",
   all = TRUE  # use all=TRUE for a full outer join, or all=FALSE for inner join
 )
-nbss_regression_summary_env <- na.omit(nbss_regression_summary_env) 
+
+nbss_regression_summary_env <- nbss_regression_summary_env %>% mutate(Year = year(Date), 
+         Month = month(Date), 
+         Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"))
+
+#nbss_regression_summary_env <- na.omit(nbss_regression_summary_env) 
 # Fit linear model: slope ~ Date
-slope_lm_secchi <- lm(slope ~ Secchi.depth, data = nbss_regression_summary_env)
+slope_lm_secchi <- lm(slope ~ sqrt(Secchi.depth), data = nbss_regression_summary_env)
 
 # Create a dataframe of predicted values for plotting
 predicted_secchi <- nbss_regression_summary_env %>%
   mutate(predicted_slope = predict(slope_lm_secchi, newdata = nbss_regression_summary_env))
 
 # Scatter plot with linear model line
-slope_plot_secchi <- ggplot(nbss_regression_summary_env, aes(x = Secchi.depth, y = slope)) +
-  geom_point(color = "blue", size = 1) +
-  geom_line(data = predicted_secchi, aes(x = Secchi.depth, y = predicted_slope), color = "red", size = 1) +
+slope_plot_secchi <- ggplot(nbss_regression_summary_env, aes(x = sqrt(Secchi.depth), y = slope)) +
+  geom_point(color = "darkgrey", size = 1) +
+  geom_line(data = predicted_secchi, aes(x = sqrt(Secchi.depth), y = predicted_slope), color = "black", size = 1) +
   labs(
-    x = "Secchi Depth",
+    x = "Square Root Transformed Secchi Depth (m)",
     y = "NBSS Slope",
     title = "Temporal Trend of NBSS Slopes with Linear Fit"
   ) +
@@ -151,24 +253,101 @@ summary(slope_lm_secchi)
 ggsave("slope_plot_secchi.png", plot = slope_plot_secchi, dpi = 300)
 browseURL("slope_plot_secchi.png")
 
+##======CLEANED UP AND ADDED 95% CI BASED ON PREDICATED NBSS SLOPE AT EACH SECCHI POINT=====
+
+# Create prediction grid (smooth line + CI)
+predicted_secchi_2 <- data.frame(
+  Secchi.depth = seq(
+    min(nbss_regression_summary_env$Secchi.depth, na.rm = TRUE),
+    max(nbss_regression_summary_env$Secchi.depth, na.rm = TRUE),
+    length.out = 100
+  )
+)
+print(predicted_secchi_2)
+# Get fitted values + confidence intervals
+predicted_ci <- predict(
+  slope_lm_secchi,
+  newdata = predicted_secchi_2,
+  interval = "confidence"
+)
+
+# Bind predictions to dataframe (names: fit, lwr, upr)
+predicted_secchi_2 <- cbind(predicted_secchi_2, predicted_ci)
+
+slope_plot_secchi_2 <- ggplot(
+  nbss_regression_summary_env,
+  aes(x = sqrt(Secchi.depth), y = slope)
+) +
+  geom_point(color = "black", size = 1.5, alpha = 0.7) +
+
+  # Confidence interval ribbon
+  geom_ribbon(
+    data = predicted_secchi_2,
+    aes(
+      x = sqrt(Secchi.depth),
+      ymin = lwr,
+      ymax = upr
+    ),
+    inherit.aes = FALSE,
+    fill = "grey70",
+    alpha = 0.35
+  ) +
+
+  # Fitted line
+  geom_line(
+    data = predicted_secchi_2,
+    aes(
+      x = sqrt(Secchi.depth),
+      y = fit
+    ),
+    color = "black",
+    linewidth = 1.1
+  ) +
+
+  scale_y_continuous(
+    breaks = scales::pretty_breaks(n = 4)
+  ) +
+  coord_cartesian(ylim = c(-2.0, NA)
+  ) +
+  labs(
+    x = "Square Root Transformed Secchi Depth (m)",
+    y = "NBSS Slope",
+    title = NULL
+  ) +
+
+  theme_classic(base_size = 13) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),  # extra belt-and-suspenders
+    plot.background  = element_blank(),  # ensures full blank background
+    axis.title = element_text(face = "bold"),
+    axis.text  = element_text(color = "black")
+  )
+
+print(slope_plot_secchi_2)
+
+ggsave("slope_plot_secchi_2.png", plot = slope_plot_secchi_2, dpi = 300)
+browseURL("slope_plot_secchi_2.png")
+
 ```
 ```{r slopes by chl a }
 library(dplyr)
 library(ggplot2)
 
 # Fit linear model: slope ~ Date
-slope_lm_chl <- lm(slope ~ avg_chl_a, data = nbss_regression_summary_env)
+slope_lm_chl <- lm(slope ~ log(avg_chl_a), data = nbss_regression_summary_env)
 
 # Create a dataframe of predicted values for plotting
 predicted_chl <- nbss_regression_summary_env %>%
   mutate(predicted_slope = predict(slope_lm_chl, newdata = nbss_regression_summary_env))
 
 # Scatter plot with linear model line
-slope_plot_chl <- ggplot(nbss_regression_summary_env, aes(x = avg_chl_a, y = slope)) +
+slope_plot_chl <- ggplot(nbss_regression_summary_env, aes(x = log(avg_chl_a), y = slope)) +
   geom_point(color = "blue", size = 1) +
-  geom_line(data = predicted_chl, aes(x = avg_chl_a, y = predicted_slope), color = "red", size = 1) +
+  geom_line(data = predicted_chl, aes(x = log(avg_chl_a), y = predicted_slope), color = "red", size = 1) +
   labs(
-    x = "Average Chl a",
+    x = "Log Average Chl a",
     y = "NBSS Slope",
     title = NULL
   ) +
@@ -182,6 +361,86 @@ print(slope_plot_chl)
 summary(slope_lm_chl)
 ggsave("slope_plot_chl.png", plot = slope_plot_chl, dpi = 300)
 browseURL("slope_plot_chl.png")
+
+##======CLEANED UP AND ADDED 95% CI BASED ON PREDICATED NBSS SLOPE AT EACH CHL A POINT=====
+
+# Create prediction grid (smooth line + CI)
+predicted_chl_2 <- data.frame(
+  avg_chl_a = seq(
+    min(nbss_regression_summary_env$avg_chl_a, na.rm = TRUE),
+    max(nbss_regression_summary_env$avg_chl_a, na.rm = TRUE),
+    length.out = 100
+  )
+)
+print(predicted_chl_2)
+# Get fitted values + confidence intervals
+predicted_ci_chl <- predict(
+  slope_lm_chl,
+  newdata = predicted_chl_2,
+  interval = "confidence"
+)
+
+# Bind predictions to dataframe (names: fit, lwr, upr)
+predicted_chl_2 <- cbind(predicted_chl_2, predicted_ci_chl)
+
+slope_plot_chl_2 <- ggplot(
+  nbss_regression_summary_env,
+  aes(x = log(avg_chl_a), y = slope)
+) +
+  geom_point(color = "black", size = 1.5, alpha = 0.7) +
+
+  # Confidence interval ribbon
+  geom_ribbon(
+    data = predicted_chl_2,
+    aes(
+      x = log(avg_chl_a),
+      ymin = lwr,
+      ymax = upr
+    ),
+    inherit.aes = FALSE,
+    fill = "grey70",
+    alpha = 0.35
+  ) +
+
+  # Fitted line
+  geom_line(
+    data = predicted_chl_2,
+    aes(
+      x = log(avg_chl_a),
+      y = fit
+    ),
+    color = "black",
+    linewidth = 1.1
+  ) +
+
+  scale_y_continuous(
+    breaks = scales::pretty_breaks(n = 4)
+  ) +
+  coord_cartesian(ylim = c(-2.0, NA)
+  ) +
+  labs(
+   x = expression(bold("Log-transformed Average Chlorophyll " * italic(a) *
+                 " (" * mu * "g " * L^{-1} * ")")),
+    y = "NBSS Slope",
+    title = NULL
+  ) +
+
+  theme_classic(base_size = 13) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),  # extra belt-and-suspenders
+    plot.background  = element_blank(),  # ensures full blank background
+    axis.title = element_text(face = "bold"),
+    axis.text  = element_text(color = "black"), 
+    axis.title.x = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold")
+  )
+
+print(slope_plot_chl_2)
+
+ggsave("slope_plot_chl_2.png", plot = slope_plot_chl_2, dpi = 300)
+browseURL("slope_plot_chl_2.png")
 ```
 ```{r slopes temp }
 library(dplyr)
@@ -213,24 +472,110 @@ print(slope_plot_temp)
 summary(slope_lm_temp)
 ggsave("slope_plot_temp.png", plot = slope_plot_temp, dpi = 300)
 browseURL("slope_plot_temp.png")
+
+##======CLEANED UP AND ADDED 95% CI BASED ON PREDICATED NBSS SLOPE AT EACH TEMP POINT=====
+# Create prediction grid (smooth line + CI)
+
+predicted_temp_2 <- data.frame(
+  Water_Temp_Avg = seq(
+    min(nbss_regression_summary_env$Water_Temp_Avg, na.rm = TRUE),
+    max(nbss_regression_summary_env$Water_Temp_Avg, na.rm = TRUE),
+    length.out = 100
+  )
+)
+#print(predicted_temp_2)
+# Get fitted values + confidence intervals
+predicted_ci_temp <- predict(
+  slope_lm_temp,
+  newdata = predicted_temp_2,
+  interval = "confidence"
+)
+
+# Bind predictions to dataframe (names: fit, lwr, upr)
+predicted_temp_2 <- cbind(predicted_temp_2, predicted_ci_temp)
+
+slope_plot_temp_2 <- ggplot(
+  nbss_regression_summary_env,
+  aes(x = Water_Temp_Avg, y = slope)
+) +
+  geom_point(color = "black", size = 1.5, alpha = 0.7) +
+
+  # Confidence interval ribbon
+  geom_ribbon(
+    data = predicted_temp_2,
+    aes(
+      x = Water_Temp_Avg,
+      ymin = lwr,
+      ymax = upr
+    ),
+    inherit.aes = FALSE,
+    fill = "grey70",
+    alpha = 0.35
+  ) +
+
+  # Fitted line
+  geom_line(
+    data = predicted_temp_2,
+    aes(
+      x = Water_Temp_Avg,
+      y = fit
+    ),
+    color = "black",
+    linewidth = 1.1
+  ) +
+
+  scale_y_continuous(
+    breaks = scales::pretty_breaks(n = 4)
+  ) +
+  coord_cartesian(ylim = c(-2.0, NA)
+  ) +
+scale_x_continuous(
+    breaks = scales::pretty_breaks(n = 6)
+  ) +
+  labs(
+    x = expression(bold("Average Water Temperature (" * degree * "C)")),
+    y = "NBSS Slope",
+    title = NULL
+  ) +
+
+  theme_classic(base_size = 13) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),  # extra belt-and-suspenders
+    plot.background  = element_blank(),  # ensures full blank background
+    axis.title = element_text(face = "bold"),
+    axis.text  = element_text(color = "black"), 
+    axis.title.x = element_text(face = "bold")
+  )
+
+print(slope_plot_temp_2)
+
+ggsave("slope_plot_temp_2.png", plot = slope_plot_temp_2, dpi = 300)
+browseURL("slope_plot_temp_2.png")
 ```
 ```{r slopes salinity }
 library(dplyr)
 library(ggplot2)
 
+#Filter out 3 outliers 
+sal_filtered <- nbss_regression_summary_env %>%
+  filter(Salinity_Avg > sort(unique(Salinity_Avg))[3])
+
+print(sal_filtered)
 # Fit linear model: slope ~ Date
-slope_lm_sal <- lm(slope ~ Salinity_Avg, data = nbss_regression_summary_env)
+slope_lm_sal <- lm(slope ~ log(Salinity_Avg), data = sal_filtered)
 
 # Create a dataframe of predicted values for plotting
-predicted_temp <- nbss_regression_summary_env %>%
-  mutate(predicted_slope = predict(slope_lm_sal, newdata = nbss_regression_summary_env))
+predicted_temp <- sal_filtered %>%
+  mutate(predicted_slope = predict(slope_lm_sal, newdata = sal_filtered))
 
 # Scatter plot with linear model line
-slope_plot_sal <- ggplot(nbss_regression_summary_env, aes(x = Salinity_Avg, y = slope)) +
+slope_plot_sal <- ggplot(sal_filtered, aes(x = log(Salinity_Avg), y = slope)) +
   geom_point(color = "blue", size = 1) +
-  geom_line(data = predicted_temp, aes(x = Salinity_Avg, y = predicted_slope), color = "red", size = 1) +
+  geom_line(data = predicted_temp, aes(x = log(Salinity_Avg), y = predicted_slope), color = "red", size = 1) +
   labs(
-    x = "Average Salinity",
+    x = "Log Transformed Average Salinity",
     y = "NBSS Slope",
     title = NULL
   ) +
@@ -244,4 +589,104 @@ print(slope_plot_sal)
 summary(slope_lm_sal)
 ggsave("slope_plot_sal.png", plot = slope_plot_sal, dpi = 300)
 browseURL("slope_plot_sal.png")
+
+##======CLEANED UP AND ADDED 95% CI BASED ON PREDICATED NBSS SLOPE AT EACH SAL POINT=====
+# Create prediction grid (smooth line + CI)
+
+predicted_sal_2 <- data.frame(
+  Salinity_Avg = seq(
+    min(sal_filtered$Salinity_Avg, na.rm = TRUE),
+    max(sal_filtered$Salinity_Avg, na.rm = TRUE),
+    length.out = 100
+  )
+)
+#print(predicted_temp_2)
+# Get fitted values + confidence intervals
+predicted_ci_sal <- predict(
+  slope_lm_sal,
+  newdata = predicted_sal_2,
+  interval = "confidence"
+)
+
+# Bind predictions to dataframe (names: fit, lwr, upr)
+predicted_sal_2 <- cbind(predicted_sal_2, predicted_ci_sal)
+
+slope_plot_sal_2 <- ggplot(
+  sal_filtered,
+  aes(x = log(Salinity_Avg), y = slope)
+) +
+  geom_point(color = "black", size = 1.5, alpha = 0.7) +
+
+  # Confidence interval ribbon
+  geom_ribbon(
+    data = predicted_sal_2,
+    aes(
+      x = log(Salinity_Avg),
+      ymin = lwr,
+      ymax = upr
+    ),
+    inherit.aes = FALSE,
+    fill = "grey70",
+    alpha = 0.35
+  ) +
+
+  # Fitted line
+  geom_line(
+    data = predicted_sal_2,
+    aes(
+      x = log(Salinity_Avg),
+      y = fit
+    ),
+    color = "black",
+    linewidth = 1.1
+  ) +
+
+  scale_y_continuous(
+    breaks = scales::pretty_breaks(n = 4)
+  ) +
+  coord_cartesian(ylim = c(-2.0, NA)
+  ) +
+scale_x_continuous(
+    breaks = scales::pretty_breaks(n = 6)
+  ) +
+  labs(
+    x = "Log Transformed Average Salinity (ppt)",
+    y = "NBSS Slope",
+    title = NULL
+  ) +
+
+  theme_classic(base_size = 13) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),  # extra belt-and-suspenders
+    plot.background  = element_blank(),  # ensures full blank background
+    axis.title = element_text(face = "bold"),
+    axis.text  = element_text(color = "black")
+  )
+
+print(slope_plot_sal_2)
+
+ggsave("slope_plot_sal_2.png", plot = slope_plot_sal_2, dpi = 300)
+browseURL("slope_plot_sal_2.png")
+```
+
+```{r, combining all plots together}
+combined_slopes_plot <-
+  (slope_plot_2      | slope_plot_chl_2) /
+  (slope_plot_temp_2 | slope_plot_secchi_2) /
+  (slope_plot_sal_2  | plot_spacer())
+
+combined_slopes_plot <- combined_slopes_plot +
+  plot_annotation(tag_levels = "A")
+print(combined_slopes_plot)
+ggsave(
+  "combined_slopes_plot.png",
+  combined_slopes_plot,
+  width = 10,
+  height = 12,   # <-- key: more height for 3 rows
+  dpi = 600,
+  bg = "white"
+)
+browseURL("combined_slopes_plot.png")
 ```

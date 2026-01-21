@@ -23,6 +23,15 @@ print(combined_df_wide)
 ```{r import and combine dataframes, include=FALSE}
 pca_data <- read.csv("pca.csv")
 pca_data_df <- as.data.frame(pca_data)
+pca_data_df <- pca_data_df %>% mutate(
+    Month = month(Date),
+    Season = case_when(
+      Month %in% 1:3 ~ "Winter",
+      Month %in% 4:6 ~ "Spring",
+      Month %in% 7:9 ~ "Summer",
+      Month %in% 10:12 ~ "Fall"
+    )
+  )
 print(pca_data_df) 
 #head(pca_data_df$Date, 10)
 pca_data_df$Date <- as.Date(pca_data_df$Date, format = "%m/%d/%Y")
@@ -46,38 +55,39 @@ pca_df <- left_join(pca_data_df, combined_df_wide, by = c("Date" = "Date"))
 pca_df <- na.omit(pca_df)
 # Inspect result
 print(pca_df)
+
+pca_df_filtered <- pca_df %>% select(-Location, -Date, -STD, -Salinity_Min, -Salinity_Max, -Water_Temp_Min, -Water_Temp_Max, -sample_net_mesh)
+
+print(pca_df_filtered)
 ```
 #Standardize data
-#Z-scores
+#Hellinger
 ```{r hellinger, include=FALSE}
 library(data.table)
 library(vegan)
 
 # Ensure data.table
-setDT(pca_df)
+setDT(pca_df_filtered)
 
 # Identify numeric columns
-numeric_cols <- sapply(pca_df, is.numeric)
+numeric_cols <- sapply(pca_df_filtered, is.numeric)
 numeric_colnames <- names(numeric_cols[numeric_cols])
 
 # Exclude environmental / metadata columns
 exclude_cols <- c(
-  "sample_net_mesh",
-  "Salinity_Min", "Salinity_Max", "Salinity_Avg",
-  "Water_Temp_Min", "Water_Temp_Max", "Water_Temp_Avg",
+  "Salinity_Avg",
+  "Water_Temp_Avg",
   "Secchi.depth",
-  "STD",
   "avg_chl_a",
   "Month",
-  "Season", 
-  "Date"
+  "Season"
 )
 
 # Community columns only
 community_cols <- setdiff(numeric_colnames, exclude_cols)
 
 # Subset community matrix
-community_df <- pca_df[, ..community_cols]
+community_df <- pca_df_filtered[, ..community_cols]
 
 # Hellinger transform
 community_hellinger <- decostand(
@@ -101,12 +111,12 @@ community_hellinger <- cbind(
   community_hellinger
 )
 print(community_hellinger)
+
+#community_hellinger <- community_hellinger %>%
+ # select(-Salinity_Min, -Salinity_Max, -Water_Temp_Min, Water_Temp_Max, -STD, -sample_net_mesh)
 ```
 ```{r pca plots NEW, include=FALSE}
-# ===============================
 # PCA with Hellinger community data + environmental vectors
-# ===============================
-
 library(data.table)
 library(vegan)
 library(ggplot2)
@@ -114,64 +124,42 @@ library(ggplot2)
 # Ensure data.table
 setDT(community_hellinger)
 
-# -------------------------------
 # 1. Split data into roles
-# -------------------------------
-
 # Environmental variables (for envfit vectors)
 env_df <- as.data.frame(
-  community_hellinger[, ..exclude_cols] #looks good
+  community_hellinger[, ..exclude_cols] # looks good
 )
 
 # Community matrix (for PCA)
 comm_mat <- as.matrix(
   community_hellinger[, ..community_cols]
-) #looks good
+) # looks good
 
-# -------------------------------
-# 2. Run PCA (NO scaling after Hellinger)
-# -------------------------------
+# 2. Run PCA (Hellinger data, CENTERED, not scaled)
+pca <- prcomp(comm_mat, center = TRUE, scale. = FALSE)
 
-pca <- prcomp(comm_mat, center = FALSE, scale. = FALSE)
-
-# -------------------------------
 # 3. PCA scores for plotting
-# -------------------------------
-
 scores_df <- as.data.frame(pca$x)
-scores_df <- cbind(scores_df, env_df)
 
 # Base PCA plot
-pca_plot <- ggplot(scores_df, aes(PC1, PC2)) +
+pca_plot_hel <- ggplot(scores_df, aes(PC1, PC2)) +
   geom_point(size = 3, alpha = 0.8) +
   theme_minimal() +
   labs(
     x = paste0("PC1 (", round(100 * summary(pca)$importance[2,1], 1), "%)"),
     y = paste0("PC2 (", round(100 * summary(pca)$importance[2,2], 1), "%)")
   )
-
-# -------------------------------
 # 4. Fit environmental vectors
-# -------------------------------
-
 envfit_res <- envfit(pca, env_df, permutations = 999)
 
 vectors <- scores(envfit_res, display = "vectors")
-
-# -------------------------------
-# 5. Prepare vectors for plotting
-# -------------------------------
-
-arrow_scale <- 1  # adjust visually
+# 5. Prepare vectors for plotting (arrows scaled to plot)
+arrow_scale <- max(abs(scores_df$PC1), abs(scores_df$PC2)) * 0.8
 
 vectors_df <- as.data.frame(vectors * arrow_scale)
 vectors_df$env_var <- rownames(vectors_df)
-
-# -------------------------------
 # 6. Add vectors to PCA plot
-# -------------------------------
-
-pca_plot_new <- pca_plot +
+pca_plot_new <- pca_plot_hel +
   geom_segment(
     data = vectors_df,
     aes(x = 0, y = 0, xend = PC1, yend = PC2),
@@ -187,14 +175,16 @@ pca_plot_new <- pca_plot +
   )
 
 print(pca_plot_new)
-
-# -------------------------------
-# 7. Save and open plot
-# -------------------------------
-
 ggsave("pca_plot_new.png", plot = pca_plot_new, dpi = 300)
 browseURL("pca_plot_new.png")
 
+# variance explained
+summary(pca)
+
+# Check envfit significance
+envfit_res
+
+summary(pca)$importance[2, ]
 ```
 ```{r pca plots OLD, include=FALSE}
 library(vegan)
