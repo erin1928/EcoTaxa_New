@@ -179,8 +179,9 @@ object_counts_og_with_dates_no_detritus <- combined_df %>%
     !object_annotation_category %in% c("scales"),
     !object_annotation_category %in% c("scale"),
     !object_annotation_category %in% c("bubble"),
-    !object_annotation_category %in% c("Macroalgae"), 
-    !object_annotation_category %in% c("Balanus<Cirripedia"),
+    !object_annotation_category %in% c("seaweed"), 
+    !object_annotation_category %in% c("Macroalgae"),
+    !object_annotation_category %in% c("Balanus<Balaninae"),
     !object_annotation_category %in% c("nauplii-molt"),
     !object_annotation_category %in% c("Insecta"),
     !object_annotation_category %in% c("ctenophore-freagments"),
@@ -204,23 +205,26 @@ object_counts_og_with_dates_no_detritus <- combined_df %>%
     object_date %in% as.Date(c("2024-08-06", "2025-10-27")),
     n_cor*2,      # keep existing value
     n_cor),
-  n_cor_ind_m3 = (n_cor / (sample_tot_vol / 1e6))*1.007
+  n_cor_ind_m3 = (n_cor / (sample_tot_vol / 1e6)), 
+      if_else(object_date <= as.Date("2025-08-06"), 1.007, 1),
+    .groups = "drop"
     ) %>%
   
   # Combine various categories as before
   mutate(
     object_annotation_category = case_when(
-      #object_annotation_category %in% c("Acartia", "Acartia hudsonica", "Acartia tonsa") ~ "Acartia spp.",
+      #object_annotation_category %in% c("Acartia", "Acartia (Acartiura) hudsonica", "Acartia (Acanthacartia) tonsa") ~ "Acartia spp.",
       #object_annotation_category %in% c("Podonidae") ~ "Podon spp.",
       #object_annotation_category %in% c("Centropages", "Centropages hamatus", "Centropages typicus") ~ "Centropages spp.",
       object_annotation_category %in% c("unidentified-nauplii", "nauplii<Copepoda") ~ "Copepod nauplii",
-     # object_annotation_category %in% c("Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
-     # object_annotation_category %in% c("Paracalanus sp.", "Paracalanus parvus", "paracalanus+sp+eggs") ~ "Paracalanus spp.",
+     # object_annotation_category %in% c("Pseudocalanus", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
+     # object_annotation_category %in% c("Paracalanus", "Paracalanus parvus", "paracalanus+sp+eggs") ~ "Paracalanus spp.",
      # object_annotation_category %in% c("Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs") ~ "Eurytemora spp.",
      # object_annotation_category %in% c("Evadne", "evadne-nordmanni-multiple") ~ "Evadne spp.",
       object_annotation_category %in% c("Evadne", "evadne-nordmanni-multiple", "Podonidae") ~ "Cladocera spp.",
-      object_annotation_category %in% c("Copepoda<Maxillopoda", "copepod shape", "badfocus<Copepoda", "multiple<Copepoda", "Microcalanus", "Microcalanus sp.", "Parvocalanus", "Temora longicornis", "Tortanus sp.", "Calanoida", "Calanus sp.", "copepod sp.", "Paracalanus sp.", "Paracalanus parvus", "paracalanus+sp+eggs", "Centropages", "Centropages hamatus", "Centropages typicus", "Acartia", "Acartia hudsonica", "Acartia tonsa", "Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs", "Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs", "Oithona sp.", "Metridia", "Labidocera") ~ "Copepoda spp.",
-      object_annotation_category %in% c("Aurelia sp.", "balanus-larvae", "Beroe cucumis", "Bivalvia larvae", "Chaetognatha", "Ctenophora sp.", "Decapoda", "Carcinus maenas", "Paguridae", "zoe<Decopoda", "Euphausiacea larvae", "Hydrozoa", "Obelia sp.", "Rathkea octopunctata", "Sarsia tubulosa", "Polychaeta", "polychaete larva", "egg<other", "fish egg", "larval-fishes", "multiple<other", "multiple+copepoda+detritus", "detritus-copepodo", "Leuckartiara", "Caligus", "Upogebia", "Crangon", "Anapagurus", "Harpacticoida", "Euphausiidae", "Gammarus", "Podocoryna") ~ "Other zooplankton",
+      object_annotation_category %in% c("Copepoda<Multicrustacea", "copepod shape", "badfocus<Copepoda", "multiple<Copepoda", "Microcalanus", "Microcalanus sp.", "Parvocalanus", "Temora longicornis", "Tortanus sp.", "Calanoida", "Calanus", "copepod sp.", "Paracalanus", "Paracalanus parvus", "paracalanus+sp+eggs", "Centropages", "Centropages hamatus", "Centropages typicus", "Acartia", "Acartia (Acartiura) hudsonica", "Acartia (Acanthacartia) tonsa", "Eurytemora affinis", "eurytemora affinis-male", "eurytemora affinis-female", "eurytemora-with-eggs", "Pseudocalanus", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs", "Oithona", "Metridia", "Labidocera", "Paracalanus sp.", "Pseudocalanus sp.", "Tortanus", "Calanus", "Oithona sp.") ~ "Copepoda spp.",
+      object_annotation_category %in% c("Aurelia", "balanus-larvae", "Beroe cucumis", "Bivalvia<Mollusca", "Chaetognatha", "Ctenophora<Animalia", "Decapoda", "Carcinus maenas", "Paguridae", "zoe<Decopoda", "Euphausiacea larvae", "Hydrozoa", "Obelia", "Rathkea octopunctata", "Sarsia tubulosa", "Polychaeta", "polychaete larva", "egg<other", "fish egg", "larval-fishes", "multiple<other", "multiple+copepoda+detritus", "detritus-copepodo", "Leuckartiara", "Caligus", "Upogebia", "Crangon", "Anapagurus", "Harpacticoida", "Euphausiidae", "Gammarus", "Podocoryna", "Ctenophora sp.", "Obelia sp.","Euphausiacea", "Aurelia sp.", "Bivalvia larvae") ~ "Other zooplankton",
+      object_annotation_category %in% c("Gastropoda larvae", "Gastropoda<Mollusca")~ "Gastropoda",
       TRUE ~ object_annotation_category
     )
   ) %>%
@@ -562,7 +566,7 @@ calculate_top10_relative_abundance_no_detritus <- function(df, exclude_categorie
       "badfocus<other", "Macroalgae", "scales", "detritus", "bubble", 
       "ctenophore-freagments", "molt", "medusae", "fiber<detritus", 
       "copepod carapace", "detritus-green", "detritus-organic", "shadow", 
-      "detritus-flat", "nauplii-molt", "Balanus<Cirripedia", "Insecta", "egg-cluster", "scale"
+      "detritus-flat", "nauplii-molt", "Balanus<Cirripedia", "Insecta", "egg-cluster", "scale", "seaweed"
     )
   }
   

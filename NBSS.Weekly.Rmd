@@ -32,7 +32,7 @@ for (d in dates) {
     filter(Spectra > 1e-01, Spectra < 1e+01, !is.na(Spectra), !is.na(NBSS))
   
   # Skip if no data
-  if(nrow(samples_straight_esd) == 0) next
+ # if(nrow(samples_straight_esd) == 0) next
   
   # Fit linear model NBSS ~ log10(Spectra)
   model <- lm(NBSS ~ log10(Spectra), data = samples_straight_esd)
@@ -125,56 +125,49 @@ browseURL("slope_plot.png")
 
 ##======CLEANED UP AND ADDED 95% CI BASED ON PREDICATED NBSS SLOPE AT EACH DATE POINT=====
 
-# Create prediction grid (smooth line + CI)
-predicted_2 <- data.frame(
-  Date = seq(
-    min(nbss_regression_summary$Date, na.rm = TRUE),
-    max(nbss_regression_summary$Date, na.rm = TRUE),
-    length.out = 100
-  )
-)
-print(predicted_2)
-# Get fitted values + confidence intervals
-predicted_ci_1 <- predict(
-  slope_lm,
-  newdata = predicted_2,
-  interval = "confidence"
-)
-print(predicted_ci_1)
-
-# Bind predictions to dataframe (names: fit, lwr, upr)
-predicted_2 <- cbind(predicted_2, predicted_ci_1)
-
-slope_plot_2 <- ggplot(
+slope_plot_3 <- ggplot(
   nbss_regression_summary,
   aes(x = Date, y = slope)
 ) +
   geom_point(color = "black", size = 1.5, alpha = 0.7) +
 
-  # Confidence interval ribbon
-  geom_ribbon(
-    data = predicted_2,
-    aes(
-      x = Date,
-      ymin = lwr,
-      ymax = upr
-    ),
-    inherit.aes = FALSE,
-    fill = "grey70",
-    alpha = 0.35
+ scale_y_continuous(
+    breaks = scales::pretty_breaks(n = 4)
+  ) +
+  coord_cartesian(ylim = c(-2.0, NA)
+  ) +
+scale_x_date(
+    date_breaks = "2 month",
+    date_labels = "%b"
+  ) +
+  labs(
+    x = "Date",
+    y = "NBSS Slope",
+    title = NULL
   ) +
 
-  # Fitted line
-  geom_line(
-    data = predicted_2,
-    aes(
-      x = Date,
-      y = fit
-    ),
-    color = "black",
-    linewidth = 1.1
-  ) +
+  theme_classic(base_size = 13) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(), 
+    plot.background  = element_blank(), 
+    axis.title = element_text(face = "bold"),
+    axis.text  = element_text(color = "black"), 
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  )
 
+print(slope_plot_3)
+
+ggsave("slope_plot_3.png", plot = slope_plot_2, dpi = 300)
+browseURL("slope_plot_3.png")
+
+########## NO LINE ############
+slope_plot_2 <- ggplot(
+  nbss_regression_summary,
+  aes(x = Date, y = slope)
+) +
+  geom_point(color = "black", size = 1.5, alpha = 0.7) +
  scale_y_continuous(
     breaks = scales::pretty_breaks(n = 4)
   ) +
@@ -205,7 +198,6 @@ print(slope_plot_2)
 
 ggsave("slope_plot_2.png", plot = slope_plot_2, dpi = 300)
 browseURL("slope_plot_2.png")
-
 ```
 ```{r slopes by secchi depth}
 library(dplyr)
@@ -671,6 +663,70 @@ ggsave("slope_plot_sal_2.png", plot = slope_plot_sal_2, dpi = 300)
 browseURL("slope_plot_sal_2.png")
 ```
 
+```{r, NBSS by shannon}
+nbss_regression_summary_env <- cbind(nbss_regression_summary_env, shannon_diversity)
+# Bind predictions to dataframe (names: fit, lwr, upr)
+predicted_sal_2 <- cbind(predicted_sal_2, predicted_ci_sal)
+
+slope_plot_sal_2 <- ggplot(
+  sal_filtered,
+  aes(x = log(Salinity_Avg), y = slope)
+) +
+  geom_point(color = "black", size = 1.5, alpha = 0.7) +
+
+  # Confidence interval ribbon
+  geom_ribbon(
+    data = predicted_sal_2,
+    aes(
+      x = log(Salinity_Avg),
+      ymin = lwr,
+      ymax = upr
+    ),
+    inherit.aes = FALSE,
+    fill = "grey70",
+    alpha = 0.35
+  ) +
+
+  # Fitted line
+  geom_line(
+    data = predicted_sal_2,
+    aes(
+      x = log(Salinity_Avg),
+      y = fit
+    ),
+    color = "black",
+    linewidth = 1.1
+  ) +
+
+  scale_y_continuous(
+    breaks = scales::pretty_breaks(n = 4)
+  ) +
+  coord_cartesian(ylim = c(-2.0, NA)
+  ) +
+scale_x_continuous(
+    breaks = scales::pretty_breaks(n = 6)
+  ) +
+  labs(
+    x = "Log Transformed Average Salinity (ppt)",
+    y = "NBSS Slope",
+    title = NULL
+  ) +
+
+  theme_classic(base_size = 13) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),  # extra belt-and-suspenders
+    plot.background  = element_blank(),  # ensures full blank background
+    axis.title = element_text(face = "bold"),
+    axis.text  = element_text(color = "black")
+  )
+
+print(slope_plot_sal_2)
+
+ggsave("slope_plot_sal_2.png", plot = slope_plot_sal_2, dpi = 300)
+browseURL("slope_plot_sal_2.png")
+```
 ```{r, combining all plots together}
 combined_slopes_plot <-
   (slope_plot_2      | slope_plot_chl_2) /

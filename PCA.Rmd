@@ -10,7 +10,7 @@ output: html_document
 library(dplyr)
 library(tidyr)
 
-combined_df_wide <- object_counts_per_m3_by_date %>%
+combined_df_wide <- object_counts_og_with_dates_no_detritus %>% # use object_counts_per_m3_by_date for all taxa and object_counts_og_with_dates_no_detritus for top 5
   pivot_wider(
     names_from  = object_annotation_category,
     values_from = n_cor_ind_m3,
@@ -39,20 +39,8 @@ pca_data_df <- pca_data_df %>%
   mutate(Date = update(Date, year = year(Date) + 2000)) %>% 
          filter(Location == "Ram")
 
-#biovolume_by_date_filtered <- biovolume_by_date %>%
-  #filter(Tow == 200)
-#pca_data_filtered <- pca_data_df %>%
-  #filter(Location == "Ram")
-
-# Join data
-#pca_df <- left_join(pca_data_filtered, biovolume_by_date_filtered, by = c("Date" = "Date"))
-
-# Inspect result
-#print(pca_df)
-
-#pca_df <- na.omit(pca_df)
 pca_df <- left_join(pca_data_df, combined_df_wide, by = c("Date" = "Date"))
-pca_df <- na.omit(pca_df)
+#pca_df <- na.omit(pca_df)
 # Inspect result
 print(pca_df)
 
@@ -80,7 +68,8 @@ exclude_cols <- c(
   "Secchi.depth",
   "avg_chl_a",
   "Month",
-  "Season"
+  "Season", 
+  "acq_sub_part"
 )
 
 # Community columns only
@@ -107,7 +96,7 @@ community_hellinger <- as.data.table(community_hellinger)
 setnames(community_hellinger, community_cols)
 
 community_hellinger <- cbind(
-  pca_df[, ..exclude_cols],
+  pca_df_filtered[, ..exclude_cols],
   community_hellinger
 )
 print(community_hellinger)
@@ -120,7 +109,9 @@ print(community_hellinger)
 library(data.table)
 library(vegan)
 library(ggplot2)
+library(pcaMethods)
 
+library(pcaMethods)
 # Ensure data.table
 setDT(community_hellinger)
 
@@ -134,7 +125,7 @@ env_df <- as.data.frame(
 comm_mat <- as.matrix(
   community_hellinger[, ..community_cols]
 ) # looks good
-
+comm_mat <- na.omit(comm_mat)
 # 2. Run PCA (Hellinger data, CENTERED, not scaled)
 pca <- prcomp(comm_mat, center = TRUE, scale. = FALSE)
 
@@ -185,6 +176,62 @@ summary(pca)
 envfit_res
 
 summary(pca)$importance[2, ]
+```
+
+```{r, PCA using Z scores where the axis are env data nd vectors are the community}
+library(dplyr)
+library(vegan)
+library(ggplot2)
+
+# env_df must have x1, x2, x3 columns (numeric)
+# comm_mat must be samples x taxa (same row order as env_df)
+
+env_proc <- env_df %>%
+  mutate(
+    # ---- TRANSFORM RAW DATA ----
+    Salinity = log10(Salinity_Avg),     
+    Secchi = sqrt(Secchi.depth),      
+    Chl = log10(abs(avg_chl_a)),            
+
+    # ---- Z-SCORE NORMALIZATION ----
+    Salinity_z = as.numeric(scale(Salinity)),
+    Secchi_z = as.numeric(scale(Secchi)),
+    Chl_z = as.numeric(scale(Chl)), 
+    Temp_z = as.numeric(scale(Water_Temp_Avg))
+  )
+
+########  MAKE PCA  ##########
+library(dplyr)
+library(vegan)
+
+# 1) Build env matrix using Z-scored data
+env <- env_proc %>%
+  select(Salinity_z, Secchi_z, Chl_z, Temp_z) %>%
+  as.matrix()
+
+# 2) Create a row-keep index BEFORE dropping rows
+keep_env <- complete.cases(env)
+
+# 3) Subset env and community to the SAME rows
+env_use  <- env[keep_env, , drop = FALSE]
+comm_use <- comm_mat[keep_env, , drop = FALSE]   # same row order as env_proc
+
+# 4) PCA on env points (already z-scored)
+env_pca <- prcomp(env_use, center = FALSE, scale. = FALSE)
+
+scores_df_env <- as.data.frame(env_pca$x)  
+
+# Fit community vectors onto the env PCA scores (comm_mat is already hellinger transformed)
+spfit <- envfit(env_pca$x[, 1:2, drop = FALSE], comm_mat, permutations = 999)
+vec <- scores(spfit, display = "vectors")
+
+spfit <- envfit(env_pca$x[, 1:2, drop = FALSE], comm_fit, permutations = 999)
+vec <- scores(spfit, display = "vectors")
+
+# Put vectors in a df
+vec_df <- as.data.frame(vec)
+vec_df$taxon <- rownames(vec_df)
+colnames(vec_df)[1:2] <- c("PC1", "PC2")
 ```
 ```{r pca plots OLD, include=FALSE}
 library(vegan)

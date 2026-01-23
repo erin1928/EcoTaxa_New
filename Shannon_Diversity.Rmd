@@ -7,7 +7,7 @@ output: html_document
 
 #Shannon Diversity Index Calculations
 ```{r calculating SD for each sample, include=FALSE}
-sd_df <- object_counts_og_with_dates_no_detritus %>%
+sd_df <- object_counts_per_m3_by_date %>% #all detritus has been removed and count values are normalized for the volume of water moving through
  mutate(
     Month = month(object_date),
     Season = case_when(
@@ -175,6 +175,115 @@ sig_tukey <- subset(tukey_df, `p adj` <= 0.05)
 
 sig_tukey[order(sig_tukey$`p adj`), ]
 
+
+
+#Shannon by Chl A
+# Plot Shannon diversity by month
+sd_box_plot_chl <- ggplot(
+  shannon_with_season_gam,
+  aes(
+    x = avg_chl_a,
+    y = shannon_index
+  )
+) +
+  # White boxes with black outlines, thicker median line
+  geom_boxplot(
+    width = 0.5,
+    outlier.shape = NA,          # don't plot boxplot outliers (we'll show all points)
+    fill = "white",
+    color = "black",
+    linewidth = 0.4
+  ) +
+  stat_boxplot(
+  geom = "errorbar",
+  width = 0.25,
+  linewidth = 0.5
+  ) +
+  # Colored points
+  geom_jitter(
+    aes(color = Season),
+    width = 0.15,
+    height = 0,
+    size = 2.2,
+    alpha = 0.95
+  ) +
+  facet_wrap(~ Year) +
+  labs(
+    title = "Shannon Diversity Index by Month",
+    x = NULL,
+    y = "Shannon Diversity Index"
+  ) +
+  # Use color scale for points
+  scale_color_manual(
+    values = c(
+      "Winter" = "#C77CFF",
+      "Spring" = "#7CAE00",
+      "Summer" = "#00BFC4",
+      "Fall"   = "#F8766D"
+    )
+  ) +
+  # no grey background, minimal grid
+  theme_classic(base_size = 13) +
+  theme(
+    legend.position = "Right",          # legend
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    axis.line = element_line(color = "black", linewidth = 0.5)
+  )
+
+
+print(sd_box_plot_chl)
+
+sd_chl_line <- ggplot(
+  data = shannon_with_season_gam,
+  aes(x = log(avg_chl_a), y = shannon_index, color = year(shannon_with_season_gam$object_date))
+) +
+  #geom_line(color = "black", linewidth = 0.7) +
+  geom_point( size = 1.6) +
+
+  labs(
+    title = NULL,
+    x = "chl a",
+    y = "SD"
+  ) +
+
+  theme_classic(base_size = 13) +
+  theme(
+    axis.title = element_text(face = "bold", size = 15),
+    axis.text = element_text(color = "black", size = 12),
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    axis.ticks.length = unit(0.22, "cm"),
+    axis.line = element_line(linewidth = 0.7),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.7)
+  )
+
+print(sd_chl_line)
+
+#by temp
+sd_temp_line <- ggplot(
+  data = shannon_with_season_gam,
+  aes(x = Water_Temp_Avg, y = shannon_index)
+) +
+  #geom_line(color = "black", linewidth = 0.7) +
+  geom_point(color = "black", size = 1.6) +
+
+  labs(
+    title = NULL,
+    x = "temp",
+    y = "SD"
+  ) +
+
+  theme_classic(base_size = 13) +
+  theme(
+    axis.title = element_text(face = "bold", size = 15),
+    axis.text = element_text(color = "black", size = 12),
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    axis.ticks.length = unit(0.22, "cm"),
+    axis.line = element_line(linewidth = 0.7),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.7)
+  )
+
+print(sd_temp_line)
 
 ```
 #Let's make a biodiversity GAM

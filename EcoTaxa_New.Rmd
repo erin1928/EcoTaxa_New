@@ -154,15 +154,16 @@ combined_df$object_date <- as.Date(combined_df$object_date)
 combined_df$object_date[combined_df$object_date == as.Date("2024-01-24")] <- as.Date("2025-01-24")
 combined_df$object_date[combined_df$object_date == as.Date("2024-11-26") & combined_df$acq_sub_part == 32] <- as.Date("2024-12-04")
 combined_df$object_date[combined_df$object_date == as.Date("2025-11-20") & combined_df$acq_sub_part == 32] <- as.Date("2025-10-27")
-combined_df$object_date[combined_df$object_date == as.Date("2024-06-13") & combined_df$sample_net_mesh == 200] <- as.Date("2024-06-27")
+combined_df$object_date[combined_df$object_date == as.Date("2024-06-13") & combined_df$sample_net_mesh == 200 & combined_df$acq_sub_part == 32 & combined_df$sample_tot_vol == 68382.99] <- as.Date("2024-06-27")
 combined_df$object_date[combined_df$object_date == as.Date("2024-02-05")] <- as.Date("2025-02-05")
 combined_df$object_date[combined_df$object_date == as.Date("2024-03-12")] <- as.Date("2025-03-12")
 combined_df$object_date[combined_df$object_date == as.Date("2024-08-01")] <- as.Date("2024-08-06")
+combined_df$object_date[combined_df$object_date == as.Date("2024-08-07")] <- as.Date("2024-08-06")
 #combined_df$sample_net_mesh[combined_df$sample_net_mesh == 1251846.9429999999702] <- 700
 combined_df$sample_tot_vol[combined_df$sample_tot_vol == as.double("1251846.9429999999702")] <- as.double("1251846.943")
 combined_df$acq_sub_part[combined_df$object_date == as.Date("2025-05-07") & as.double(combined_df$acq_sub_part) == 2] <- 32
 combined_df$acq_sub_part[combined_df$object_date == as.Date("2025-04-22") & as.double(combined_df$acq_sub_part) == 1] <- 4
-combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-06-13") & as.double(combined_df$acq_sub_part) == 32] <- 64
+combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-06-13") & as.double(combined_df$acq_sub_part) == 32 & combined_df$sample_tot_vol == 	106860.337] <- 64
 combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-07-30") & as.double(combined_df$acq_sub_part) == 32] <- 64
 combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-07-09") & combined_df$sample_net_mesh == "700" & as.double(combined_df$acq_sub_part) == 4] <- 16
 combined_df$acq_sub_part[combined_df$object_date == as.Date("2024-07-30") & as.double(combined_df$acq_sub_part) == 1] <- 2
@@ -236,7 +237,8 @@ Biovolume_df <- data.frame(
  )
 
 print(Biovolume_df)
-
+unique_dates <- unique(Biovolume_df$Date)
+print(unique_dates)
 # Aggregate Biovolume by Date
 #biovolume_by_date <- aggregate(Spherical_volume ~ Date, data = Biovolume_df, sum)
 # View the result
@@ -318,9 +320,16 @@ object_counts_per_m3_by_date <- combined_df %>%
     sample_stationid %in% c("ram", "ram_island", "nan"),
     !object_annotation_category %in% c("badfocus<other"), 
     !object_annotation_category %in% c("scales"),
-    !object_annotation_category %in% c("Macroalgae"),
     !object_annotation_category %in% c("scale"),
-    !object_annotation_category %in% c("medusae"),
+    !object_annotation_category %in% c("bubble"),
+    !object_annotation_category %in% c("seaweed"), 
+    !object_annotation_category %in% c("Balanus<Balaninae"),
+    !object_annotation_category %in% c("nauplii-molt"),
+    !object_annotation_category %in% c("Insecta"),
+    !object_annotation_category %in% c("ctenophore-freagments"),
+    !object_annotation_category %in% c("medusae"), 
+    !object_annotation_category %in% c("molt"), 
+    !object_annotation_category %in% c("egg-cluster"),
     !grepl("^not-living>", object_annotation_hierarchy)) %>%
   group_by(object_date, object_annotation_category, sample_net_mesh, sample_stationid, sample_tot_vol) %>%
   summarise(
@@ -347,7 +356,7 @@ mutate(
   # Combine selected Acartia categories
   mutate(
     object_annotation_category = case_when(
-      object_annotation_category %in% c("Acartia", "Acartia hudsonica", "Acartia tonsa") ~ "Acartia spp.",
+      object_annotation_category %in% c("Acartia", "Acartia (Acartiura) hudsonica", "Acartia (Acanthacartia) tonsa") ~ "Acartia spp.",
       TRUE ~ object_annotation_category
     )
   ) %>%
@@ -368,14 +377,14 @@ mutate(
   # Combine selected Pseudocalanus categories
   mutate(
     object_annotation_category = case_when(
-      object_annotation_category %in% c("Pseudocalanus", "Pseudocalanus sp.", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
+      object_annotation_category %in% c("Pseudocalanus", "Pseudocalanus", "Pseudocalanus elongatus", "pseudocalanus-sp-with-eggs") ~ "Psuedocalanus spp.",
       TRUE ~ object_annotation_category
     )
   ) %>%
   # Combine selected Paracalanus categories
   mutate(
     object_annotation_category = case_when(
-      object_annotation_category %in% c("Paracalanus sp.", "Paracalanus parvus", "	paracalanus+sp+eggs") ~ "Paracalanus spp.",
+      object_annotation_category %in% c("Paracalanus", "Paracalanus parvus", "	paracalanus+sp+eggs") ~ "Paracalanus spp.",
       TRUE ~ object_annotation_category
     )
   ) %>%
@@ -388,7 +397,7 @@ mutate(
   ) %>%
    mutate(
     object_annotation_category = case_when(
-      object_annotation_category %in% c("Oithona sp.") ~ "Oithona spp.",
+      object_annotation_category %in% c("Oithona") ~ "Oithona spp.",
       TRUE ~ object_annotation_category
     )
   ) 
@@ -396,13 +405,15 @@ mutate(
 object_counts_per_m3_by_date <- object_counts_per_m3_by_date %>%
  # group_by(object_date) %>%
   #summarise(
-   # n_cor_ind_m3 = sum(n_cor_ind_m3)*1.007, #Correction Factor = 0.799%
-   # .groups = "drop"
+   # n_cor_ind_m3 = sum(n_cor_ind_m3) *
+     # if_else(object_date <= as.Date("2025-08-06"), 1.007, 1),
+    #.groups = "drop"
   #)
    #This section is to modify the data table for the pca chart (aggregate by date and species)
   group_by(object_annotation_category, sample_net_mesh, object_date) %>%
   summarise(
-   n_cor_ind_m3 = sum(n_cor_ind_m3), #add it all up
+   n_cor_ind_m3 = sum(n_cor_ind_m3),
+   if_else(object_date <= as.Date("2025-08-06"), 1.007, 1),#add it all up
     .groups = "drop"
   )
 
@@ -427,7 +438,7 @@ library(scales)
 
 biovolume_plot_200 <- ggplot(
   data = object_counts_per_m3_by_date,
-  aes(x = object_date, y = n_cor_ind_m3)
+  aes(x = object_date, y = log(n_cor_ind_m3))
 ) +
   geom_line(color = "black", linewidth = 0.7) +
   geom_point(color = "black", size = 1.6) +
